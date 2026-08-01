@@ -4,3 +4,4 @@ ollama_endpoint = "http://localhost:11434"
 response_timeout_seconds = 300
 report_directory = "reports"
 workspace_directory = "workspaces"
+default_research_mode = "off"

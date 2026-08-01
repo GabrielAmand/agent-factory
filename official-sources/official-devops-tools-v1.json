@@ -1,0 +1,16 @@
+{
+  "registry_version": "official-source-registry-v1",
+  "policy_id": "official-devops-tools-v1",
+  "topic": "devops-tools",
+  "approval_status": "pending",
+  "entries": [
+    { "source_id": "docker-official", "fact_id": "docker", "display_name": "Docker", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
+    { "source_id": "kubernetes-official", "fact_id": "kubernetes", "display_name": "Kubernetes", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
+    { "source_id": "terraform-official", "fact_id": "terraform", "display_name": "Terraform", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
+    { "source_id": "ansible-official", "fact_id": "ansible", "display_name": "Ansible", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
+    { "source_id": "jenkins-official", "fact_id": "jenkins", "display_name": "Jenkins", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
+    { "source_id": "gitlab-ci-official", "fact_id": "gitlab-ci", "display_name": "GitLab CI", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
+    { "source_id": "prometheus-official", "fact_id": "prometheus", "display_name": "Prometheus", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
+    { "source_id": "argo-cd-official", "fact_id": "argo-cd", "display_name": "Argo CD", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" }
+  ]
+}

@@ -10,7 +10,52 @@ use crate::ollama::OllamaMetrics;
 use crate::protocol::{
     DEVELOPER_REQUEST_VERSION, DEVELOPER_SCHEMA_VERSION, LEAD_SCHEMA_VERSION, LeadResponse,
 };
+use crate::research::ResearchMode;
 use crate::workspace::PublishedWorkspace;
+
+/// Dormant execution-report-v5 research metadata. E0 defines this contract but
+/// deliberately does not connect it to the V3 report writer.
+#[derive(Serialize)]
+#[allow(dead_code)]
+pub struct ResearchReportV5<'a> {
+    pub mode: ResearchMode,
+    pub request_status: ResearchRequestStatusV5,
+    pub source_policy: Option<&'a str>,
+    pub source_count: usize,
+    pub source_ids: &'a [String],
+    pub retrieval_status: ResearchStageStatusV5,
+    pub explorer: ExplorerReportV5<'a>,
+    pub fact_count: usize,
+    pub provenance_status: ValidationStatus,
+    pub document_digests: &'a [String],
+    pub bundle_digest: Option<&'a str>,
+}
+
+#[derive(Serialize)]
+#[allow(dead_code)]
+pub struct ExplorerReportV5<'a> {
+    pub status: ResearchStageStatusV5,
+    pub model: Option<&'a str>,
+    pub validation_status: ValidationStatus,
+    pub metrics: Option<&'a OllamaMetrics>,
+}
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[allow(dead_code)] // Prepared for report V5; V3 remains active in E0.
+pub enum ResearchRequestStatusV5 {
+    Skipped,
+    Requested,
+}
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[allow(dead_code)] // Prepared for report V5; V3 remains active in E0.
+pub enum ResearchStageStatusV5 {
+    NotAttempted,
+    Success,
+    Failure,
+}
 
 pub const REPORT_VERSION: &str = "execution-report-v3";
 pub const TRANSMITTED_FIELDS: [&str; 5] = [
@@ -463,5 +508,42 @@ mod tests {
             report["failure"]["cause"],
             "missing_dom_target: required target is absent"
         );
+    }
+
+    #[test]
+    fn dormant_v5_research_metadata_has_no_fact_or_evidence_fields() {
+        let source_ids = vec!["docker-official".to_owned()];
+        let document_digests = vec!["future-digest".to_owned()];
+        let research = ResearchReportV5 {
+            mode: ResearchMode::Required,
+            request_status: ResearchRequestStatusV5::Requested,
+            source_policy: Some("official-devops-tools-v1"),
+            source_count: 1,
+            source_ids: &source_ids,
+            retrieval_status: ResearchStageStatusV5::NotAttempted,
+            explorer: ExplorerReportV5 {
+                status: ResearchStageStatusV5::NotAttempted,
+                model: Some("gemma3:latest"),
+                validation_status: ValidationStatus::NotAttempted,
+                metrics: None,
+            },
+            fact_count: 0,
+            provenance_status: ValidationStatus::NotAttempted,
+            document_digests: &document_digests,
+            bundle_digest: None,
+        };
+        let json = serde_json::to_string(&research).unwrap();
+        for forbidden in [
+            "display_name",
+            "official_url",
+            "source_url",
+            "description",
+            "normalized_text",
+            "headers",
+            "dns",
+            "reasoning",
+        ] {
+            assert!(!json.contains(forbidden));
+        }
     }
 }

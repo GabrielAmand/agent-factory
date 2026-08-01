@@ -48,6 +48,16 @@ The file-application, command-policy, and approval models require human validati
 - Prefer a model different from the Developer model.
 - Record detected defects and subsequent iterations.
 
+## Explorer E0: official-source contracts without execution
+
+- Preserve the active V1 runtime while adding Lead V2, Explorer V1, fact-bundle V1, and Developer workspace V2 contracts.
+- Add a repository-owned eight-item DevOps registry whose network fields remain pending authoritative verification.
+- Validate the research activation matrix, registry readiness states, Explorer boundaries, provenance, fact invariants, and canonical serialization with deterministic fixtures.
+- Prepare privacy-minimized execution-report-v5 types without activating them.
+- Add no network access, source retrieval, Explorer model call, or Developer behavior change.
+
+Before E1, humans must verify and approve every canonical domain, path prefix, official URL, documentation URL, and redirect rule. E1 then requires separate approval for the HTTP/TLS dependency set, DNS and proxy boundary, retrieval limits, and live-network smoke-test procedure.
+
 ## Phase 5: Workspace isolation
 
 - Run changes in isolated, ephemeral Git worktrees or repositories.

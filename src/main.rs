@@ -1,9 +1,17 @@
 mod config;
 mod error;
+#[allow(dead_code)] // Phase E0 contracts are validated by tests but not activated at runtime.
+mod explorer;
+#[allow(dead_code)] // Phase E0 contracts are validated by tests but not activated at runtime.
+mod fact_bundle;
 mod ollama;
 mod preview;
 mod protocol;
 mod report;
+#[allow(dead_code)] // Phase E0 research contracts are not activated by the V1 runtime.
+mod research;
+#[allow(dead_code)] // Phase E0 registry policy is not consumed by the V1 runtime.
+mod source_registry;
 mod workspace;
 
 use std::io::{self, Read};

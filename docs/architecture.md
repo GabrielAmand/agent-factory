@@ -132,6 +132,30 @@ Context selection is role-specific and follows least privilege. Full conversatio
 
 Reports should eventually capture timestamps, duration, iterations, per-role context volume, removed context, interventions, defects, resource use, success, and estimated remote cost. The schema must be versioned so reports remain interpretable as fields evolve.
 
+## Official-source Explorer: Phase E0
+
+E0 defines contracts and validation only. It adds no HTTP, DNS, TLS, redirect, HTML-normalization, Explorer-call, Developer-V3, external-link, or workspace-publication path. The executable continues to load the V1 Lead and Developer contracts. All existing V1 prompts and schemas remain versioned and unchanged.
+
+Research mode is `off`, `auto`, or `required`, with configuration defaulting to `off`; a future run interface will choose the effective mode per run. Lead response V2 contains a strict tagged `research` union. A required request can name only the `devops-tools` topic, `official-devops-tools-v1` policy, exactly eight results, the five fixed fields, and one approved reason code. It has no URL, domain, path, method, header, command, script, or authentication field.
+
+The activation decision matrix is:
+
+| Mode | Lead says not required | Lead says required |
+|---|---|---|
+| `off` | continue without research | fail `research_forbidden` |
+| `auto` | continue without research | accept a semantically valid request |
+| `required` | fail `required_research_missing` | accept a semantically valid request |
+
+The repository-owned registry separates four properties: structural validity, policy completeness, pending authoritative verification, and retrieval readiness. Completeness requires the eight approved fact IDs and exact display names in registry order. Retrieval readiness additionally requires verified HTTPS policy fields for every entry and whole-registry human approval. Pending entries must contain no domain or URL, preventing speculative policy data from becoming executable later. Registry source and fact IDs use 1 to 64 lowercase ASCII ID characters, display names use 1 to 100 characters, domains use at most 253 bytes, each entry has at most eight conservative 512-byte path prefixes, and canonical URLs use at most 2,048 bytes.
+
+Explorer request V1 is trusted Rust output and is limited to 160 KiB, one to eight documents, 16 KiB normalized UTF-8 text per document, 96 KiB combined text, eight requested facts, five fixed fields, 64-byte conservative source IDs, and 2,048-byte credential-free HTTPS canonical URLs without queries or fragments. Explorer response V1 is limited to 64 KiB and exactly eight facts. Each description contains 1 to 500 Unicode scalar values; each fact has 1 to 10 unique lowercase ASCII tags of at most 32 bytes and 1 to 8 unique known source IDs.
+
+Rust builds `fact-bundle-v1` only after validating exact count, registry membership and order, exact IDs, names, official URLs and source URLs, provenance, uniqueness, plain-text descriptions, and conservative tags. Canonical digest input is compact UTF-8 JSON with fixed struct-field order, registry fact order, and lexically sorted tags and source IDs. Timestamps are excluded. E0 tests byte-for-byte determinism but intentionally does not compute SHA-256.
+
+Developer workspace V2 is dormant and contains exactly three untrusted files: `index.html`, `app.js`, and `styles.css`. It cannot contain `resources.json`. A later phase will have Rust serialize `resources.json` from the same validated fact bundle used to derive functional assertions, then combine the three untrusted files and one trusted data file before existing validation and atomic publication.
+
+Execution-report-v5 preparation types contain compact research mode/status, policy, source counts and IDs, retrieval/Explorer/provenance status, metrics, fact count, and future document/bundle digest fields. E0 does not activate V5. These structures deliberately have no names, URLs, descriptions, page text, full request/response, headers, DNS data, or reasoning fields.
+
 ## Deferred decisions
 
 The internal Rust module layout, concrete Lead prompt, report-directory default, later command policy representation, isolation mechanism, and cross-phase metric definitions remain deferred. Any choice that changes an approved architecture or security boundary requires human validation before implementation.

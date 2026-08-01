@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "explorer-request-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request_version", "topic", "requested_count", "required_fields", "source_policy", "retrieved_documents"],
+  "properties": {
+    "request_version": { "const": "explorer-request-v1" },
+    "topic": { "const": "devops-tools" },
+    "requested_count": { "const": 8 },
+    "required_fields": { "type": "array", "minItems": 5, "maxItems": 5, "items": { "enum": ["display_name", "description", "tags", "official_url", "source_url"] } },
+    "source_policy": { "const": "official-devops-tools-v1" },
+    "retrieved_documents": {
+      "type": "array", "minItems": 1, "maxItems": 8,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["source_id", "canonical_url", "normalized_text"],
+        "properties": { "source_id": { "type": "string" }, "canonical_url": { "type": "string" }, "normalized_text": { "type": "string" } }
+      }
+    }
+  }
+}

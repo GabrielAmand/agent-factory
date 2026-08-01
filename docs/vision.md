@@ -54,3 +54,9 @@ The system should record:
 - estimated remote API cost when a remote API is applicable.
 
 These measurements should be useful for comparing workflows without encouraging agents to optimize a metric at the expense of correctness or safety.
+
+## Trusted factual context
+
+A future Explorer pipeline will let the laboratory work with bounded official information without giving models unrestricted network access. Rust-owned source registries select the evidence; an Explorer extracts only from that evidence; Rust validates provenance and creates one immutable fact bundle. The same bundle will feed Developer context, trusted `resources.json` serialization, and functional assertions so those stages cannot silently disagree about facts.
+
+Phase E0 establishes these versioned contracts but has no retrieval or Explorer runtime. The first DevOps catalog is a curated product set, and all eight source entries remain blocked pending authoritative URL verification and human approval. The Explorer never chooses its own sources and never serves as the authority for whether its output is true.

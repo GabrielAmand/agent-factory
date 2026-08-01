@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lead-response-v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["response_version", "summary", "assumptions", "acceptance_criteria", "tasks", "research"],
+  "properties": {
+    "response_version": { "const": "lead-response-v2" },
+    "summary": { "type": "string" },
+    "assumptions": { "type": "array", "maxItems": 10, "items": { "type": "string" } },
+    "acceptance_criteria": { "type": "array", "minItems": 1, "maxItems": 20, "items": { "type": "string" } },
+    "tasks": {
+      "type": "array", "minItems": 1, "maxItems": 20,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "title", "objective", "acceptance_criteria", "depends_on"],
+        "properties": {
+          "id": { "type": "string" }, "title": { "type": "string" }, "objective": { "type": "string" },
+          "acceptance_criteria": { "type": "array", "minItems": 1, "maxItems": 20, "items": { "type": "string" } },
+          "depends_on": { "type": "array", "maxItems": 20, "items": { "type": "string" } }
+        }
+      }
+    },
+    "research": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["status"], "properties": { "status": { "const": "not_required" } } },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "reason_code", "topic", "requested_count", "required_fields", "source_policy"],
+          "properties": {
+            "status": { "const": "required" },
+            "reason_code": { "enum": ["official_external_facts", "current_official_information", "official_documentation_links", "user_explicitly_requested_sources"] },
+            "topic": { "const": "devops-tools" },
+            "requested_count": { "const": 8 },
+            "required_fields": { "type": "array", "minItems": 5, "maxItems": 5, "items": { "enum": ["display_name", "description", "tags", "official_url", "source_url"] } },
+            "source_policy": { "const": "official-devops-tools-v1" }
+          }
+        }
+      ]
+    }
+  }
+}

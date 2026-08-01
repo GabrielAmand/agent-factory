@@ -5,6 +5,7 @@ use serde::Deserialize;
 use url::{Host, Url};
 
 use crate::error::{AppError, ErrorKind};
+use crate::research::ResearchMode;
 
 const MAX_MODEL_CHARS: usize = 200;
 const MAX_ENDPOINT_CHARS: usize = 2_048;
@@ -20,6 +21,8 @@ struct FileConfig {
     response_timeout_seconds: u64,
     report_directory: String,
     workspace_directory: String,
+    #[serde(default)]
+    default_research_mode: ResearchMode,
 }
 
 #[derive(Debug)]
@@ -30,6 +33,8 @@ pub struct Config {
     pub response_timeout_seconds: u64,
     pub report_directory: PathBuf,
     pub workspace_directory: PathBuf,
+    #[allow(dead_code)] // Parsed now; per-run activation is intentionally deferred beyond E0.
+    pub default_research_mode: ResearchMode,
 }
 
 impl Config {
@@ -90,6 +95,7 @@ impl Config {
             response_timeout_seconds: file.response_timeout_seconds,
             report_directory,
             workspace_directory,
+            default_research_mode: file.default_research_mode,
         })
     }
 }
@@ -268,6 +274,7 @@ mod tests {
             response_timeout_seconds: 300,
             report_directory: "reports".to_owned(),
             workspace_directory: "workspaces".to_owned(),
+            default_research_mode: ResearchMode::Off,
         }
     }
 
@@ -288,6 +295,22 @@ mod tests {
             let url = validate_endpoint(endpoint).expect("approved endpoint");
             assert_eq!(url.path(), "/api/chat");
         }
+    }
+
+    #[test]
+    fn omitted_research_default_is_off() {
+        let file: FileConfig = toml::from_str(
+            r#"
+lead_model = "lead"
+developer_model = "developer"
+ollama_endpoint = "http://localhost:11434"
+response_timeout_seconds = 300
+report_directory = "reports"
+workspace_directory = "workspaces"
+"#,
+        )
+        .unwrap();
+        assert_eq!(file.default_research_mode, ResearchMode::Off);
     }
 
     #[test]

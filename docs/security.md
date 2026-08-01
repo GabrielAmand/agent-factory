@@ -77,3 +77,13 @@ Human validation is required before adopting or materially changing:
 - network or remote Git capabilities;
 - retention and redaction policy for reports;
 - any architecture choice that changes a trust boundary.
+
+## Dormant E0 research boundary
+
+Phase E0 creates data contracts but no network or Explorer execution path. The Lead and Developer remain offline except for their existing loopback Ollama calls, and the current runtime still uses only V1 contracts. A model cannot supply a URL, domain, path, method, header, command, script, or authentication value through Lead V2 research fields.
+
+The official-source registry is trusted repository policy, never model output. Pending entries must omit all network locations. Structural validity is not authority: retrieval remains blocked until all eight entries have been verified against authoritative sources and the complete registry receives explicit human approval. The phrase “widely used” represents a curated product choice and is not asserted as a fact established by the Explorer.
+
+The future Explorer is not its own oracle. It may cite only source IDs and exact URLs supplied by trusted Rust. Fact-bundle construction rejects new items, names, URLs, sources, domains, HTML, Markdown markers, scripts, common command-like content, multiline descriptions, and unsupported fields. Plain-text and command-sensitive detection is conservative defense in depth, not proof that arbitrary natural language is harmless or that all possible commands and file-like contents can be recognized.
+
+Canonical fact-bundle bytes contain the validated facts and are intended as future SHA-256 input; they are not written to reports. Report-V5 preparation stores only compact counts, source IDs, statuses, metrics, and future digests. It has no fields for page content, normalized evidence, fact descriptions, names, URLs, headers, DNS values, credentials, full model messages, or reasoning.

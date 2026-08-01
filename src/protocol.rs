@@ -13,6 +13,58 @@ pub const MAX_GENERATED_FILE_BYTES: usize = 32 * 1024;
 pub const MAX_GENERATED_TOTAL_BYTES: usize = 96 * 1024;
 pub const GENERATED_FILE_NAMES: [&str; 4] =
     ["index.html", "app.js", "styles.css", "resources.json"];
+#[allow(dead_code)] // Versioned E0 contract; runtime activation is deferred.
+pub const DEVELOPER_WORKSPACE_V2_VERSION: &str = "developer-workspace-v2";
+#[allow(dead_code)] // Versioned E0 contract; runtime activation is deferred.
+pub const DEVELOPER_V2_FILE_NAMES: [&str; 3] = ["index.html", "app.js", "styles.css"];
+
+#[allow(dead_code)] // Versioned E0 contract; runtime activation is deferred.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeveloperWorkspaceV2 {
+    pub response_version: String,
+    pub task_id: String,
+    pub files: Vec<GeneratedFileV2>,
+}
+
+#[allow(dead_code)] // Versioned E0 contract; runtime activation is deferred.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GeneratedFileV2 {
+    pub path: String,
+    pub content: String,
+}
+
+#[allow(dead_code)] // Versioned E0 contract; runtime activation is deferred.
+impl DeveloperWorkspaceV2 {
+    pub fn parse_and_validate_contract(json: &str) -> Result<Self, AppError> {
+        let workspace: Self = serde_json::from_str(json).map_err(|error| {
+            AppError::new(
+                ErrorKind::Validation,
+                format!("Developer workspace V2 is not valid contract JSON: {error}"),
+            )
+        })?;
+        if workspace.response_version != DEVELOPER_WORKSPACE_V2_VERSION
+            || workspace.files.len() != DEVELOPER_V2_FILE_NAMES.len()
+        {
+            return validation_error("invalid Developer workspace V2 contract fields");
+        }
+        validate_task_id(&workspace.task_id)?;
+        let mut names = HashSet::new();
+        for file in &workspace.files {
+            if !DEVELOPER_V2_FILE_NAMES.contains(&file.path.as_str())
+                || !names.insert(file.path.as_str())
+                || file.content.trim().is_empty()
+                || file.content.len() > MAX_GENERATED_FILE_BYTES
+                || file.content.starts_with('\u{feff}')
+                || file.content.contains('\0')
+            {
+                return validation_error("invalid Developer workspace V2 file");
+            }
+        }
+        Ok(workspace)
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -1698,5 +1750,23 @@ mod tests {
             value["files"][2]["content"] = serde_json::json!(content);
             assert!(DeveloperWorkspace::parse_and_validate(&value.to_string(), "task-1").is_err());
         }
+    }
+
+    #[test]
+    fn dormant_developer_workspace_v2_accepts_only_three_trusted_names() {
+        let valid = serde_json::json!({
+            "response_version": "developer-workspace-v2",
+            "task_id": "task-1",
+            "files": [
+                {"path": "index.html", "content": "<main>App</main>"},
+                {"path": "app.js", "content": "console.log('app')"},
+                {"path": "styles.css", "content": "body { color: black; }"}
+            ]
+        });
+        assert!(DeveloperWorkspaceV2::parse_and_validate_contract(&valid.to_string()).is_ok());
+
+        let mut invalid = valid;
+        invalid["files"][2]["path"] = serde_json::json!("resources.json");
+        assert!(DeveloperWorkspaceV2::parse_and_validate_contract(&invalid.to_string()).is_err());
     }
 }

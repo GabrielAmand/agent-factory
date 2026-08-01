@@ -1,0 +1,1 @@
+{"response_version":"lead-response-v2","summary":"Create the requested artifact.","assumptions":[],"acceptance_criteria":["The result meets the request."],"tasks":[{"id":"task-1","title":"Build artifact","objective":"Create the requested artifact.","acceptance_criteria":["The artifact is complete."],"depends_on":[]}],"research":{"status":"not_required"}}
