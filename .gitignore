@@ -1,0 +1,18 @@
+# Rust build output (for the future implementation)
+/target/
+
+# Local runtime reports and temporary state
+/reports/
+/.agent-factory/
+
+# Environment files may contain secrets
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system artifacts
+.DS_Store
+*.swp
+*.swo
+*~
+
