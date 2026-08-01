@@ -1,5 +1,5 @@
-model = "gemma3"
+lead_model = "gemma3:latest"
+developer_model = "qwen2.5-coder:7b"
 ollama_endpoint = "http://localhost:11434"
 response_timeout_seconds = 300
 report_directory = "reports"
-

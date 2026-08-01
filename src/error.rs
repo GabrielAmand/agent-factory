@@ -9,6 +9,7 @@ pub enum ErrorKind {
     Network,
     Response,
     Validation,
+    Delegation,
     Report,
 }
 

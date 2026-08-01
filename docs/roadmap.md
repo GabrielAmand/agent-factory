@@ -19,21 +19,23 @@ No Developer, Reviewer, concurrency, subprocess, command execution, command runn
 
 Phase 1 is complete only when malformed or excessive inputs and outputs fail closed, the 1 MiB response bound and approved timeouts are enforced, report failures are distinguishable, representative contract tests pass, and one documented local Ollama smoke test produces a valid report.
 
-## Phase 2: Deterministic local runner
+## Phase 2: Lead-to-Developer proposal
 
-- Introduce an explicit command allowlist and argument validation.
+- Add exactly one configurable Developer model after the Lead.
+- Select the first dependency-free Lead task and transmit only its ID, title, objective, and acceptance criteria.
+- Validate a strict proposal containing create/modify path objectives and test objectives, without file contents, patches, commands, source access, or workspace changes.
+- Keep calls sequential, unload each role model after its call, and report role metrics separately.
+
+Phase 2 is complete when both role contracts and payload limits fail closed, later failures preserve earlier results in execution-report-v2, and a local two-model smoke test succeeds.
+
+## Phase 3: Deterministic local runner and application design
+
+- Design a deterministic file applier before allowing proposal application.
+- Introduce an explicit command allowlist and argument validation only after separate approval.
 - Require human approval for classified risky actions.
-- Record execution outcomes locally.
 - Reduce output to failure counts and concise causes before any model receives it.
 
-The command policy and approval model require human validation before implementation.
-
-## Phase 3: Developer role
-
-- Add small, Lead-defined task delegation.
-- Supply only task-relevant context to the Developer.
-- Let the Developer produce implementation code and related tests.
-- Keep orchestration sequential and measure iteration behavior.
+The file-application, command-policy, and approval models require human validation before implementation.
 
 ## Phase 4: Reviewer role
 

@@ -15,9 +15,11 @@ Models and their outputs are untrusted. The orchestrator is the enforcement boun
 - Require human approval for risky actions, privilege changes, destructive operations, network access, policy changes, or scope expansion.
 - Preserve an audit trail of approvals and important orchestration decisions without recording secrets.
 
-For Phase 1, the program accepts no credentials, authorization headers, `.env` loading, or secret configuration fields. Users must not place secrets in requests. The application cannot reliably recognize every secret embedded in ordinary text, so it does not persist the raw request, prompts, raw model response, model reasoning, headers, or environment data.
+For Phase 2 V1, the program accepts no credentials, authorization headers, `.env` loading, or secret configuration fields. Users must not place secrets in requests. The application cannot reliably recognize every secret embedded in ordinary text, so it does not persist the raw request, Developer request body, prompts, raw model responses, model reasoning, headers, or environment data.
 
-Phase 1 has no subprocess, shell, Git, command-runner, or model-tool capability. Its only network operation is one non-streaming request to an explicitly configured `localhost`, `127.0.0.1`, or `::1` Ollama endpoint. It rejects redirects, other hosts, remote APIs, URL credentials, query strings, and fragments. The response is bounded to 1 MiB, uses a two-second connection timeout and a configurable 1-to-600-second response timeout with a 300-second default, and is never retried automatically.
+V1 has no subprocess, shell, Git, command-runner, file-applier, source-file access, or model-tool capability. Its only network operations are one Lead call and at most one Developer call to the same explicitly configured `localhost`, `127.0.0.1`, or `::1` Ollama endpoint. It rejects redirects, other hosts, remote APIs, URL credentials, query strings, and fragments. Each response is bounded to 1 MiB, uses a two-second connection timeout and a configurable 1-to-600-second response timeout with a 300-second default, and is never retried automatically.
+
+The Developer receives only the selected task ID, title, objective, and acceptance criteria. Proposed paths pass a conservative lexical policy that excludes internal control directories, report/build directories, traversal, and common secret-sensitive names. A valid path remains data in a report: it neither authorizes nor causes a filesystem read or write.
 
 ## Role isolation
 
@@ -37,7 +39,7 @@ OS-enforced sandboxing is a separate deployment boundary. Filesystem permissions
 
 ### Recommended restrictive launch profile
 
-Run Phase 1 with a profile that:
+Run V1 with a profile that:
 
 - uses a dedicated, unprivileged user with no administrative rights;
 - exposes no Git credentials, SSH keys, cloud credentials, kubeconfig files, credential helpers, agent sockets, or unrelated home-directory content;

@@ -11,14 +11,19 @@ use std::process::ExitCode;
 use chrono::Utc;
 use config::Config;
 use error::{AppError, ErrorKind};
-use ollama::{OllamaMetrics, call_lead};
-use protocol::{LeadResponse, validate_user_request};
-use report::{ReportData, write_report};
+use ollama::{OllamaMetrics, call_developer, call_lead};
+use protocol::{
+    DeveloperProposal, DeveloperRequest, LeadResponse, select_first_ready_task,
+    validate_user_request,
+};
+use report::{ReportData, StageStatus, ValidationStatus, write_report};
 
 const CONFIG_ROOT: &str = ".";
 const MAX_STDIN_BYTES: u64 = 64 * 1024;
 const LEAD_PROMPT: &str = include_str!("../prompts/lead-v1.txt");
 const LEAD_SCHEMA: &str = include_str!("../schemas/lead-response-v1.json");
+const DEVELOPER_PROMPT: &str = include_str!("../prompts/developer-v1.txt");
+const DEVELOPER_SCHEMA: &str = include_str!("../schemas/developer-proposal-v1.json");
 
 fn main() -> ExitCode {
     match run() {
@@ -32,16 +37,7 @@ fn main() -> ExitCode {
 
 fn run() -> Result<(), AppError> {
     eprintln!("agent-factory: validating configuration");
-    let repository_root = Path::new(CONFIG_ROOT);
-    let config = Config::load(repository_root)?;
-    let schema_result: Result<serde_json::Value, AppError> = serde_json::from_str(LEAD_SCHEMA)
-        .map_err(|error| {
-            AppError::new(
-                ErrorKind::Configuration,
-                format!("embedded Lead schema is invalid: {error}"),
-            )
-        });
-
+    let config = Config::load(Path::new(CONFIG_ROOT))?;
     let started_at = Utc::now();
     let run_id = format!(
         "{}-{}",
@@ -50,30 +46,98 @@ fn run() -> Result<(), AppError> {
     );
 
     let mut input = String::new();
-    let read_result = read_bounded_input(io::stdin(), &mut input);
+    let input_result =
+        read_bounded_input(io::stdin(), &mut input).and_then(|_| validate_user_request(&input));
     let report_input = input.trim().to_owned();
-    let input_result = read_result.and_then(|_| validate_user_request(&input));
+    let lead_schema = parse_embedded_schema("Lead", LEAD_SCHEMA);
+    let developer_schema = parse_embedded_schema("Developer", DEVELOPER_SCHEMA);
 
-    let mut metrics: Option<OllamaMetrics> = None;
+    let mut lead_status = StageStatus::NotAttempted;
+    let mut lead_validation = ValidationStatus::NotAttempted;
+    let mut lead_metrics: Option<OllamaMetrics> = None;
     let mut lead_response: Option<LeadResponse> = None;
+    let mut delegation_status = StageStatus::NotAttempted;
+    let mut selected_task_id: Option<String> = None;
+    let mut developer_request_bytes: Option<usize> = None;
+    let mut developer_status = StageStatus::NotAttempted;
+    let mut developer_validation = ValidationStatus::NotAttempted;
+    let mut developer_metrics: Option<OllamaMetrics> = None;
+    let mut developer_proposal: Option<DeveloperProposal> = None;
     let mut terminal_error: Option<AppError> = None;
-    match (schema_result, input_result) {
-        (Ok(schema), Ok(request)) => {
+    let mut failure_stage: Option<&'static str> = None;
+
+    // V1 is intentionally linear: Lead, deterministic selection, then at most one Developer.
+    match (input_result, lead_schema, developer_schema) {
+        (Ok(request), Ok(lead_schema), Ok(developer_schema)) => {
             eprintln!("agent-factory: calling local Lead model");
-            match call_lead(&config, &request, LEAD_PROMPT, &schema) {
+            lead_status = StageStatus::Failure;
+            match call_lead(&config, &request, LEAD_PROMPT, &lead_schema) {
                 Ok(success) => {
-                    metrics = Some(success.metrics);
-                    lead_response = Some(success.lead_response);
+                    lead_status = StageStatus::Success;
+                    lead_validation = ValidationStatus::Passed;
                     eprintln!("agent-factory: Lead response validated");
+
+                    let delegation_result =
+                        select_first_ready_task(&success.output).and_then(|task| {
+                            let task_id = task.id.clone();
+                            let request_json =
+                                DeveloperRequest::from_task(task).to_bounded_json()?;
+                            Ok((task_id, request_json))
+                        });
+                    lead_metrics = Some(success.metrics);
+                    lead_response = Some(success.output);
+
+                    match delegation_result {
+                        Ok((task_id, developer_request)) => {
+                            selected_task_id = Some(task_id.clone());
+                            delegation_status = StageStatus::Success;
+                            developer_request_bytes = Some(developer_request.len());
+                            eprintln!("agent-factory: calling local Developer model");
+                            developer_status = StageStatus::Failure;
+                            match call_developer(
+                                &config,
+                                &developer_request,
+                                &task_id,
+                                DEVELOPER_PROMPT,
+                                &developer_schema,
+                            ) {
+                                Ok(success) => {
+                                    developer_status = StageStatus::Success;
+                                    developer_validation = ValidationStatus::Passed;
+                                    developer_metrics = Some(success.metrics);
+                                    developer_proposal = Some(success.output);
+                                    eprintln!("agent-factory: Developer proposal validated");
+                                }
+                                Err(failure) => {
+                                    developer_validation = validation_status(&failure.error);
+                                    developer_metrics = failure.metrics;
+                                    terminal_error = Some(*failure.error);
+                                    failure_stage = Some("developer");
+                                }
+                            }
+                        }
+                        Err(error) => {
+                            delegation_status = StageStatus::Failure;
+                            terminal_error = Some(error);
+                            failure_stage = Some("delegation");
+                        }
+                    }
                 }
                 Err(failure) => {
-                    metrics = failure.metrics;
+                    lead_validation = validation_status(&failure.error);
+                    lead_metrics = failure.metrics;
                     terminal_error = Some(*failure.error);
+                    failure_stage = Some("lead");
                 }
             }
         }
-        (Err(error), _) | (_, Err(error)) => {
+        (Err(error), _, _) => {
             terminal_error = Some(error);
+            failure_stage = Some("input");
+        }
+        (_, Err(error), _) | (_, _, Err(error)) => {
+            terminal_error = Some(error);
+            failure_stage = Some("configuration");
         }
     }
 
@@ -85,19 +149,46 @@ fn run() -> Result<(), AppError> {
             run_id: &run_id,
             started_at,
             finished_at,
-            model: &config.model,
             input: &report_input,
-            metrics: metrics.as_ref(),
+            lead_model: &config.lead_model,
+            lead_status,
+            lead_validation,
+            lead_metrics: lead_metrics.as_ref(),
             lead_response: lead_response.as_ref(),
+            delegation_status,
+            selected_task_id: selected_task_id.as_deref(),
+            developer_request_bytes,
+            developer_model: &config.developer_model,
+            developer_status,
+            developer_validation,
+            developer_metrics: developer_metrics.as_ref(),
+            developer_proposal: developer_proposal.as_ref(),
+            failure_stage,
             error: terminal_error.as_ref(),
         },
     )?;
     eprintln!("agent-factory: report written to {}", report_path.display());
-
     if let Some(error) = terminal_error {
         return Err(error);
     }
     Ok(())
+}
+
+fn parse_embedded_schema(role: &str, schema: &str) -> Result<serde_json::Value, AppError> {
+    serde_json::from_str(schema).map_err(|error| {
+        AppError::new(
+            ErrorKind::Configuration,
+            format!("embedded {role} schema is invalid: {error}"),
+        )
+    })
+}
+
+fn validation_status(error: &AppError) -> ValidationStatus {
+    if matches!(error.kind(), ErrorKind::Validation) {
+        ValidationStatus::Failed
+    } else {
+        ValidationStatus::NotAttempted
+    }
 }
 
 fn read_bounded_input(reader: impl Read, output: &mut String) -> Result<(), AppError> {
@@ -118,9 +209,8 @@ fn read_bounded_input(reader: impl Read, output: &mut String) -> Result<(), AppE
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-
     use super::*;
+    use std::io::Cursor;
 
     #[test]
     fn rejects_stdin_above_the_byte_limit_without_reading_it_all() {
@@ -128,5 +218,11 @@ mod tests {
         let mut output = String::new();
         assert!(read_bounded_input(Cursor::new(input), &mut output).is_err());
         assert_eq!(output.len(), MAX_STDIN_BYTES as usize + 1);
+    }
+
+    #[test]
+    fn generation_schemas_omit_ollama_incompatible_max_length() {
+        assert!(!LEAD_SCHEMA.contains("maxLength"));
+        assert!(!DEVELOPER_SCHEMA.contains("maxLength"));
     }
 }

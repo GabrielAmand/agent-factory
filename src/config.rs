@@ -14,7 +14,8 @@ const MAX_TIMEOUT_SECONDS: u64 = 600;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileConfig {
-    model: String,
+    lead_model: String,
+    developer_model: String,
     ollama_endpoint: String,
     response_timeout_seconds: u64,
     report_directory: String,
@@ -22,7 +23,8 @@ struct FileConfig {
 
 #[derive(Debug)]
 pub struct Config {
-    pub model: String,
+    pub lead_model: String,
+    pub developer_model: String,
     pub chat_url: Url,
     pub response_timeout_seconds: u64,
     pub report_directory: PathBuf,
@@ -47,7 +49,8 @@ impl Config {
     }
 
     fn validate(file: FileConfig, repository_root: &Path) -> Result<Self, AppError> {
-        validate_non_empty("model", &file.model, MAX_MODEL_CHARS)?;
+        validate_non_empty("lead_model", &file.lead_model, MAX_MODEL_CHARS)?;
+        validate_non_empty("developer_model", &file.developer_model, MAX_MODEL_CHARS)?;
         validate_non_empty("ollama_endpoint", &file.ollama_endpoint, MAX_ENDPOINT_CHARS)?;
         validate_non_empty(
             "report_directory",
@@ -66,7 +69,8 @@ impl Config {
         let report_directory = validate_report_directory(repository_root, &file.report_directory)?;
 
         Ok(Self {
-            model: file.model,
+            lead_model: file.lead_model,
+            developer_model: file.developer_model,
             chat_url,
             response_timeout_seconds: file.response_timeout_seconds,
             report_directory,
@@ -225,7 +229,8 @@ mod tests {
 
     fn valid_file() -> FileConfig {
         FileConfig {
-            model: "gemma3".to_owned(),
+            lead_model: "gemma3:latest".to_owned(),
+            developer_model: "qwen2.5-coder:7b".to_owned(),
             ollama_endpoint: "http://localhost:11434".to_owned(),
             response_timeout_seconds: 300,
             report_directory: "reports".to_owned(),

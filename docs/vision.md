@@ -27,6 +27,8 @@ The Lead interprets the user request, identifies assumptions, defines acceptance
 
 The Developer implements an assigned task and its implementation-related tests within the supplied scope and context.
 
+Phase 2 V1 deliberately stops before implementation: its Developer receives one minimal task context and returns only a validated proposal of file and test objectives. It cannot inspect source files, emit contents or patches, or modify a workspace. Those capabilities require a later, separately approved deterministic application boundary.
+
 ### Runner
 
 The runner is deterministic rather than agentic. It executes only commands explicitly permitted by policy and returns a compact result summary.
@@ -50,4 +52,3 @@ The system should record:
 - estimated remote API cost when a remote API is applicable.
 
 These measurements should be useful for comparing workflows without encouraging agents to optimize a metric at the expense of correctness or safety.
-

@@ -86,6 +86,20 @@ Configuration and report-directory validation occur before a model-call attempt 
 
 ## Component boundaries
 
+## Phase 2 V1: Lead-to-Developer proposal
+
+V1 performs at most two sequential model calls. After a valid Lead response, trusted Rust code selects the first task in Lead-provided order whose `depends_on` array is empty. It does not choose another task after any failure. The Developer model is called at most once and both role requests set `keep_alive: 0`, so models need not remain loaded together.
+
+The versioned `developer-request-v1` object contains `request_version` plus exactly four task fields: selected task ID, title, objective, and acceptance criteria. Its serialized JSON is limited to 32 KiB, and the complete Developer Ollama request body is limited to 64 KiB. The raw user request, Lead prompt or full output, Lead summary, global assumptions and criteria, other tasks, dependency graph, conversation, repository data, reports, logs, metrics, environment, secrets, and reasoning are not transmitted.
+
+The strict `developer-proposal-v1` response contains a decision, matching task ID, summary, assumptions, file-change proposals, test proposals, risks, and open questions. `proposal_ready` requires a file change. `clarification_required` requires an open question and forbids file changes. File changes contain only path, `create` or `modify`, and objective; tests contain only name and objective. Contents, patches, diffs, commands, shell strings, tool calls, executable actions, deletion, and rename are outside the contract.
+
+Proposed paths are limited to 512 ASCII characters from letters, digits, `/`, `.`, `-`, and `_`. They must be relative and have no empty, `.`, or `..` component. Components named `.git`, `.agents`, `.codex`, `reports`, or `target` are forbidden, as are `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa`, and `id_ed25519`. Duplicate paths and duplicate test names fail validation. Validation never grants filesystem access or write authorization.
+
+Developer limits are: summary 1–2,000 characters; assumptions, risks, and open questions 0–10 strings of 1–1,000 characters; file changes and tests 0–20 items; file objective 1–2,000; test name 1–200; and test objective 1–1,000. As with the Lead schema, Ollama generation schemas omit `maxLength` for Ollama 0.32.5 compatibility. Rust semantic validation remains authoritative.
+
+Root configuration now has separate `lead_model` and `developer_model` fields. Execution-report-v2 stores concrete Lead and Developer sections with separate status, validation, model, schema, metrics, and validated output fields; delegation metadata records the selected task ID, request byte count, request version, and the fixed transmitted-field names. A later-stage failure preserves completed earlier-stage results. Raw inputs, request bodies, prompts, raw responses, reasoning, headers, secrets, and environment dumps remain excluded.
+
 - **Orchestrator:** controls the workflow and rejects invalid state transitions or model output.
 - **Ollama adapter:** performs the narrowly scoped local model request and captures relevant usage metadata when available.
 - **Protocol types and schemas:** define versioned JSON inputs and outputs for each role.
@@ -94,7 +108,7 @@ Configuration and report-directory validation occur before a model-call attempt 
 - **Policy and runner (later):** map approved actions to fixed command definitions; arbitrary model-generated shell execution is out of scope.
 - **Workspace isolation (later):** creates ephemeral Git worktrees or repositories without providing credentials to agents.
 
-Phase 1 contains no subprocess API, shell execution, Git integration, command runner, model tools, retry mechanism, remote API, concurrency, database, or web UI.
+Phase 2 V1 contains no subprocess API, shell execution, Git integration, command runner, model tools, retry mechanism, source-file access, file applier, remote API, concurrency, database, or web UI.
 
 ## Context and reporting
 

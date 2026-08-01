@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "developer-proposal-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision", "task_id", "summary", "assumptions", "file_changes", "tests", "risks", "open_questions"],
+  "properties": {
+    "decision": { "enum": ["proposal_ready", "clarification_required"] },
+    "task_id": { "type": "string" },
+    "summary": { "type": "string" },
+    "assumptions": { "type": "array", "maxItems": 10, "items": { "type": "string" } },
+    "file_changes": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "action", "objective"],
+        "properties": {
+          "path": { "type": "string" },
+          "action": { "enum": ["create", "modify"] },
+          "objective": { "type": "string" }
+        }
+      }
+    },
+    "tests": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "objective"],
+        "properties": {
+          "name": { "type": "string" },
+          "objective": { "type": "string" }
+        }
+      }
+    },
+    "risks": { "type": "array", "maxItems": 10, "items": { "type": "string" } },
+    "open_questions": { "type": "array", "maxItems": 10, "items": { "type": "string" } }
+  }
+}
