@@ -18,6 +18,16 @@ These rules are durable and apply to every future change in this repository.
 - Do not claim that a check passed unless it was actually run.
 - Keep agent messages and persisted reports structured, concise, and suitable for validation.
 
+## Change completion and Git workflow
+
+After completing requested changes:
+
+1. Run the relevant checks.
+2. Show `git diff --stat`, `git status`, and a concise summary of the changes.
+3. Do not commit until the user explicitly approves the commit.
+4. After approval, create one commit containing only the requested scope.
+5. Do not push unless the user explicitly requests it.
+
 ## Security and human control
 
 - Never bypass a security rule, command allowlist, validation boundary, or approval requirement.
@@ -33,4 +43,3 @@ These rules are durable and apply to every future change in this repository.
 - The Developer owns implementation code and implementation-related tests.
 - The runner executes only explicitly allowed commands and does not infer permission.
 - The Reviewer evaluates the diff, acceptance criteria, and summarized test results; it should use a different model when practical.
-

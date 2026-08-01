@@ -26,6 +26,10 @@ The first version is deliberately small:
 - do not introduce a Developer or Reviewer agent;
 - do not add concurrency or remote Git interaction.
 
+Phase 1 is a single synchronous Rust binary. It sends one non-streaming request to an explicitly configured local Ollama endpoint, validates the Lead response against a versioned contract, and writes a versioned JSON report. It has no subprocess, Git, tool, retry, remote API, database, or web UI capability.
+
+The detailed Phase 1 contract and limits are defined in [the architecture](docs/architecture.md). Application checks narrow normal program behavior, but they are not a substitute for the restrictive OS launch profile described in [the security model](docs/security.md).
+
 See [the vision](docs/vision.md), [architecture](docs/architecture.md), [security model](docs/security.md), and [roadmap](docs/roadmap.md) for the project boundaries and planned evolution.
 
 ## Repository layout
@@ -38,4 +42,3 @@ schemas/    Versioned JSON schemas (empty until the protocol is defined)
 ## Status
 
 The repository is at the documentation stage. No orchestrator implementation or dependency setup is included yet.
-

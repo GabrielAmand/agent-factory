@@ -4,14 +4,20 @@ The roadmap advances through small vertical slices. Each phase should have expli
 
 ## Phase 1: Single Lead call
 
-- Define the minimal Lead response contract.
-- Call one local Ollama Lead model.
-- Request structured JSON output.
-- Parse and validate the response in Rust.
-- Save a local execution report.
-- Capture the measurements available from this single call.
+- Create one synchronous Rust binary crate with no async runtime.
+- Read one bounded user request from standard input.
+- Call one Lead model through one non-streaming native Ollama `/api/chat` request using `ureq`.
+- Restrict the configured endpoint to explicit `localhost`, `127.0.0.1`, or `::1` hosts.
+- Supply the approved static, versioned Lead JSON Schema to Ollama.
+- Apply strict `serde` deserialization with unknown fields denied, followed by semantic and size validation in Rust.
+- Save a versioned JSON execution report after configuration and report-directory validation succeed.
+- Capture Ollama-reported token counts and durations when available, without estimation.
+- Use concise standard-error lifecycle messages without recording sensitive or raw model data.
+- Document a restrictive OS launch profile while keeping OS sandboxing outside the application.
 
-No Developer, Reviewer, concurrency, command execution, remote model, or remote Git interaction belongs in this phase.
+No Developer, Reviewer, concurrency, subprocess, command execution, command runner, model tool, retry, remote model, remote API, Git operation, database, web UI, or application framework belongs in this phase.
+
+Phase 1 is complete only when malformed or excessive inputs and outputs fail closed, the 1 MiB response bound and approved timeouts are enforced, report failures are distinguishable, representative contract tests pass, and one documented local Ollama smoke test produces a valid report.
 
 ## Phase 2: Deterministic local runner
 
@@ -50,4 +56,3 @@ The isolation design requires architecture and security approval.
 - Estimate remote API cost only when remote APIs are introduced.
 - Consider concurrency only after sequential correctness and isolation are demonstrated.
 - Consider remote Git interaction only with an approved credential-free design and explicit human control.
-

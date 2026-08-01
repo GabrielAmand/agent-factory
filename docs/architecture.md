@@ -41,6 +41,48 @@ The first executable slice contains only:
 
 It explicitly excludes the Developer, runner command execution, Reviewer, concurrency, isolated worktrees, remote models, and remote Git operations.
 
+### Approved execution contract
+
+Phase 1 is one synchronous Rust binary crate. It uses a blocking `ureq` client to make exactly one native Ollama `POST /api/chat` request. The request is non-streaming and supplies a static, versioned JSON Schema through Ollama's structured-output `format` field. No async runtime or application framework is used.
+
+The program reads one user request from standard input. After trimming, the request must contain between 1 and 16,000 Unicode scalar values. The request is sent only to the configured Lead model and is not persisted in the execution report.
+
+The Ollama endpoint must use plain HTTP and an explicit local host of `localhost`, `127.0.0.1`, or `::1`. Other spellings and hostnames are rejected even if they resolve to a loopback address. Credentials, query strings, fragments, and redirects are rejected. An explicit port is allowed and defaults to `11434`; the application constructs the `/api/chat` path itself.
+
+The connection timeout is two seconds. The response timeout defaults to 300 seconds and may be configured from 1 through 600 seconds. Automatic retries are disabled, and the response body is limited to 1 MiB.
+
+### Lead response contract
+
+The top-level Lead response contains exactly these fields:
+
+- `summary`: a string containing 1 to 2,000 Unicode scalar values;
+- `assumptions`: an array of 0 to 10 strings, each containing 1 to 1,000 Unicode scalar values;
+- `acceptance_criteria`: an array of 1 to 20 strings, each containing 1 to 1,000 Unicode scalar values;
+- `tasks`: an array of 1 to 20 task objects.
+
+Each task contains exactly these fields:
+
+- `id`: 1 to 32 ASCII characters, limited to lowercase letters, digits, and hyphens;
+- `title`: a string containing 1 to 200 Unicode scalar values;
+- `objective`: a string containing 1 to 2,000 Unicode scalar values;
+- `acceptance_criteria`: an array of 1 to 20 strings, each containing 1 to 1,000 Unicode scalar values.
+
+Empty or whitespace-only strings are invalid. Task objects are planning and delegation records only; the contract contains no command, tool, patch, or executable-action field.
+
+Rust validates the model response in layers: a static versioned JSON Schema guides Ollama structured output, strict `serde` types use `deny_unknown_fields`, and explicit Rust checks enforce semantic and size constraints. The first version does not add a runtime JSON Schema-validation framework. Invalid output fails closed and is not retried.
+
+### Configuration contract
+
+Configuration is a root-level TOML file. Phase 1 configuration is limited to the Lead model, local Ollama endpoint, response timeout, and report directory. Model names contain 1 to 200 characters, endpoint URLs are at most 2,048 characters, and report paths are at most 4,096 characters. Configuration contains no credentials or authorization headers.
+
+### Execution report contract
+
+Each report is versioned JSON written atomically beneath the validated report directory, using a UTC timestamp and run identifier in its filename. A report records status, timestamps, total duration, model name, schema version, validation outcome, compact failure information, input character and byte counts, and Ollama usage fields when supplied: prompt and output token counts plus reported durations.
+
+Reports never contain the raw user request, prompts, raw HTTP or model responses, model reasoning, request or response headers, credentials, secrets, or environment dumps. Token counts come from Ollama's `prompt_eval_count` and `eval_count`; unavailable values remain absent rather than being estimated.
+
+Configuration and report-directory validation occur before a model-call attempt begins. Failures before both validations succeed do not create a report. After they succeed, every terminal model-call path must attempt an atomic report write, including network, timeout, body-limit, parsing, and validation failures. A report-write failure is returned as a distinct error and stated concisely on standard error; persistence cannot be guaranteed across filesystem or hardware failure.
+
 ## Component boundaries
 
 - **Orchestrator:** controls the workflow and rejects invalid state transitions or model output.
@@ -51,6 +93,8 @@ It explicitly excludes the Developer, runner command execution, Reviewer, concur
 - **Policy and runner (later):** map approved actions to fixed command definitions; arbitrary model-generated shell execution is out of scope.
 - **Workspace isolation (later):** creates ephemeral Git worktrees or repositories without providing credentials to agents.
 
+Phase 1 contains no subprocess API, shell execution, Git integration, command runner, model tools, retry mechanism, remote API, concurrency, database, or web UI.
+
 ## Context and reporting
 
 Context selection is role-specific and follows least privilege. Full conversation histories, unrelated files, and raw command logs should not be forwarded by default. Runner feedback to models is limited to useful failure counts and concise causes.
@@ -59,5 +103,4 @@ Reports should eventually capture timestamps, duration, iterations, per-role con
 
 ## Deferred decisions
 
-The exact Rust crate layout, JSON schema vocabulary, Ollama endpoint configuration, report format and storage path, command policy representation, isolation mechanism, and metric definitions require human validation before implementation commits to them.
-
+The internal Rust module layout, concrete Lead prompt, report-directory default, later command policy representation, isolation mechanism, and cross-phase metric definitions remain deferred. Any choice that changes an approved architecture or security boundary requires human validation before implementation.
