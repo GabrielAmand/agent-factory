@@ -19,6 +19,7 @@ struct FileConfig {
     ollama_endpoint: String,
     response_timeout_seconds: u64,
     report_directory: String,
+    workspace_directory: String,
 }
 
 #[derive(Debug)]
@@ -28,6 +29,7 @@ pub struct Config {
     pub chat_url: Url,
     pub response_timeout_seconds: u64,
     pub report_directory: PathBuf,
+    pub workspace_directory: PathBuf,
 }
 
 impl Config {
@@ -57,6 +59,17 @@ impl Config {
             &file.report_directory,
             MAX_REPORT_PATH_CHARS,
         )?;
+        validate_non_empty(
+            "workspace_directory",
+            &file.workspace_directory,
+            MAX_REPORT_PATH_CHARS,
+        )?;
+        if file.workspace_directory != "workspaces" {
+            return Err(AppError::new(
+                ErrorKind::Configuration,
+                "workspace_directory must be the repository-relative path workspaces",
+            ));
+        }
 
         if !(1..=MAX_TIMEOUT_SECONDS).contains(&file.response_timeout_seconds) {
             return Err(AppError::new(
@@ -67,6 +80,8 @@ impl Config {
 
         let chat_url = validate_endpoint(&file.ollama_endpoint)?;
         let report_directory = validate_report_directory(repository_root, &file.report_directory)?;
+        let workspace_directory =
+            validate_workspace_directory(repository_root, &file.workspace_directory)?;
 
         Ok(Self {
             lead_model: file.lead_model,
@@ -74,8 +89,26 @@ impl Config {
             chat_url,
             response_timeout_seconds: file.response_timeout_seconds,
             report_directory,
+            workspace_directory,
         })
     }
+}
+
+fn validate_workspace_directory(root: &Path, configured: &str) -> Result<PathBuf, AppError> {
+    let directory = validate_report_directory(root, configured)?;
+    let metadata = fs::symlink_metadata(root.join(configured)).map_err(|error| {
+        AppError::new(
+            ErrorKind::Configuration,
+            format!("workspace directory is unavailable: {error}"),
+        )
+    })?;
+    if metadata.file_type().is_symlink() {
+        return Err(AppError::new(
+            ErrorKind::Configuration,
+            "workspace directory must not be a symbolic link",
+        ));
+    }
+    Ok(directory)
 }
 
 fn validate_non_empty(name: &str, value: &str, maximum: usize) -> Result<(), AppError> {
@@ -234,12 +267,14 @@ mod tests {
             ollama_endpoint: "http://localhost:11434".to_owned(),
             response_timeout_seconds: 300,
             report_directory: "reports".to_owned(),
+            workspace_directory: "workspaces".to_owned(),
         }
     }
 
     fn repository() -> TempDir {
         let directory = TempDir::new().expect("temporary directory");
         fs::create_dir(directory.path().join("reports")).expect("reports directory");
+        fs::create_dir(directory.path().join("workspaces")).expect("workspaces directory");
         directory
     }
 
@@ -278,6 +313,18 @@ mod tests {
         let mut file = valid_file();
         file.response_timeout_seconds = 601;
         assert!(Config::validate(file, repository.path()).is_err());
+    }
+
+    #[test]
+    fn rejects_any_workspace_directory_other_than_the_approved_root() {
+        let repository = repository();
+        let mut file = valid_file();
+        file.workspace_directory = "other-workspaces".to_owned();
+        let error = Config::validate(file, repository.path()).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "workspace_directory must be the repository-relative path workspaces"
+        );
     }
 
     #[test]

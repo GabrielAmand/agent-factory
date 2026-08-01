@@ -3,6 +3,8 @@
 
 # Local runtime reports and temporary state
 /reports/
+/workspaces/*
+!/workspaces/.gitkeep
 /.agent-factory/
 
 # Environment files may contain secrets
@@ -15,4 +17,3 @@
 *.swp
 *.swo
 *~
-

@@ -36,31 +36,42 @@ See [the vision](docs/vision.md), [architecture](docs/architecture.md), [securit
 
 ```text
 docs/       Project design and policy documentation
-schemas/    Versioned JSON schemas (empty until the protocol is defined)
+prompts/    Versioned role prompts
+schemas/    Versioned structured-output schemas
+workspaces/ Generated run workspaces (ignored except for .gitkeep)
 ```
 
 ## Status
 
-Phase 2 V1 keeps the synchronous V0 boundary and adds one proposal-only Developer call. The Lead uses `gemma3:latest`; the Developer uses `qwen2.5-coder:7b`. Both are configurable and called sequentially with `keep_alive: 0`. The Developer receives only one selected task and cannot inspect or modify project files.
+The current synchronous workflow calls one Lead and at most one Developer. The Developer returns a validated four-file static website bundle, and trusted Rust publishes it to a new isolated run directory. Neither model can inspect project files, invoke tools, or choose filesystem operations.
 
-## Phase 2 V1 usage
+## Workspace-generation usage
 
 Prerequisites are a Rust toolchain, a locally running Ollama server, and both models selected in `agent-factory.toml`. The defaults are `gemma3:latest` and `qwen2.5-coder:7b`.
 
-Create the report directory before running:
+Create the approved runtime directories before running:
 
 ```text
 mkdir reports
+mkdir workspaces
 ```
 
 Then provide one request on standard input:
 
 ```text
-printf 'Describe a small implementation plan.' | cargo run
+printf 'Create a minimal static website.' | cargo run
 ```
 
-The application reads `agent-factory.toml` from the current repository root. It accepts only explicit loopback Ollama endpoints and writes reports beneath the configured, existing report directory. These application checks do not replace the OS sandbox recommended in the security documentation.
+The application reads `agent-factory.toml` from the current repository root. It accepts only explicit loopback Ollama endpoints, writes reports beneath `reports`, and publishes generated sites beneath `workspaces`. These application checks do not replace the OS sandbox recommended in the security documentation.
 
 Standard input is limited to 64 KiB before UTF-8 and semantic validation. After trimming, the request must still contain between 1 and 16,000 Unicode scalar values.
 
-V1 makes one Lead call and, after strict validation, selects the first Lead task whose `depends_on` is empty. It sends the Developer only that task's ID, title, objective, and acceptance criteria in a versioned request. The returned `DeveloperProposal` may name safe repository-relative create or modify proposals, but the application neither reads those paths nor writes them. The execution-report-v2 format keeps Lead and Developer validation and Ollama metrics separate.
+The program selects the first Lead task whose `depends_on` is empty. Developer request V2 contains only that task's ID, title, objective, and acceptance criteria plus the Lead's top-level acceptance criteria. After validating all four generated files in memory, Rust publishes them atomically to `workspaces/run-<id>` and records metadata—not file contents—in execution-report-v3.
+
+Preview a completed run with a non-privileged port:
+
+```text
+cargo run -- preview --run-id <id> --port 8080
+```
+
+The synchronous preview server binds only to `127.0.0.1`, serves only the four generated assets through five fixed GET/HEAD routes, and does not open a browser.

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-factory.local/schemas/developer-workspace-v1.json",
+  "title": "Developer workspace version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["response_version", "task_id", "files"],
+  "properties": {
+    "response_version": {"const": "developer-workspace-v1"},
+    "task_id": {"type": "string", "minLength": 1},
+    "files": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "content"],
+        "properties": {
+          "path": {"enum": ["index.html", "app.js", "styles.css", "resources.json"]},
+          "content": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

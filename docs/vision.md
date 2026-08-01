@@ -29,6 +29,8 @@ The Developer implements an assigned task and its implementation-related tests w
 
 Phase 2 V1 deliberately stops before implementation: its Developer receives one minimal task context and returns only a validated proposal of file and test objectives. It cannot inspect source files, emit contents or patches, or modify a workspace. Those capabilities require a later, separately approved deterministic application boundary.
 
+The static-workspace slice lets the Developer generate only four fixed website files. Trusted Rust, not the model, validates and atomically publishes them in a new run workspace. This is a constrained artifact-generation experiment, not general source access or implementation authority.
+
 ### Runner
 
 The runner is deterministic rather than agentic. It executes only commands explicitly permitted by policy and returns a compact result summary.

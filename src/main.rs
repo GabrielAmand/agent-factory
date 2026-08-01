@@ -1,8 +1,10 @@
 mod config;
 mod error;
 mod ollama;
+mod preview;
 mod protocol;
 mod report;
+mod workspace;
 
 use std::io::{self, Read};
 use std::path::Path;
@@ -12,18 +14,16 @@ use chrono::Utc;
 use config::Config;
 use error::{AppError, ErrorKind};
 use ollama::{OllamaMetrics, call_developer, call_lead};
-use protocol::{
-    DeveloperProposal, DeveloperRequest, LeadResponse, select_first_ready_task,
-    validate_user_request,
-};
+use protocol::{DeveloperRequestV2, LeadResponse, select_first_ready_task, validate_user_request};
 use report::{ReportData, StageStatus, ValidationStatus, write_report};
+use workspace::{PublishedWorkspace, publish_workspace};
 
 const CONFIG_ROOT: &str = ".";
 const MAX_STDIN_BYTES: u64 = 64 * 1024;
 const LEAD_PROMPT: &str = include_str!("../prompts/lead-v1.txt");
 const LEAD_SCHEMA: &str = include_str!("../schemas/lead-response-v1.json");
-const DEVELOPER_PROMPT: &str = include_str!("../prompts/developer-v1.txt");
-const DEVELOPER_SCHEMA: &str = include_str!("../schemas/developer-proposal-v1.json");
+const DEVELOPER_PROMPT: &str = include_str!("../prompts/developer-workspace-v1.txt");
+const DEVELOPER_SCHEMA: &str = include_str!("../schemas/developer-workspace-v1.json");
 
 fn main() -> ExitCode {
     match run() {
@@ -36,6 +36,36 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), AppError> {
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    if arguments.is_empty() {
+        run_generation()
+    } else {
+        run_preview(&arguments)
+    }
+}
+
+fn run_preview(arguments: &[String]) -> Result<(), AppError> {
+    if arguments.len() != 5
+        || arguments[0] != "preview"
+        || arguments[1] != "--run-id"
+        || arguments[3] != "--port"
+    {
+        return Err(AppError::new(
+            ErrorKind::Preview,
+            "usage: agent-factory preview --run-id <id> --port <1024-65535>",
+        ));
+    }
+    let port = arguments[4].parse::<u16>().map_err(|_| {
+        AppError::new(
+            ErrorKind::Preview,
+            "preview port must be between 1024 and 65535",
+        )
+    })?;
+    let config = Config::load(Path::new(CONFIG_ROOT))?;
+    preview::serve(&config.workspace_directory, &arguments[2], port)
+}
+
+fn run_generation() -> Result<(), AppError> {
     eprintln!("agent-factory: validating configuration");
     let config = Config::load(Path::new(CONFIG_ROOT))?;
     let started_at = Utc::now();
@@ -62,11 +92,14 @@ fn run() -> Result<(), AppError> {
     let mut developer_status = StageStatus::NotAttempted;
     let mut developer_validation = ValidationStatus::NotAttempted;
     let mut developer_metrics: Option<OllamaMetrics> = None;
-    let mut developer_proposal: Option<DeveloperProposal> = None;
+    let mut generated_file_count = 0;
+    let mut generated_bytes = 0;
+    let mut workspace_status = StageStatus::NotAttempted;
+    let mut published_workspace: Option<PublishedWorkspace> = None;
     let mut terminal_error: Option<AppError> = None;
     let mut failure_stage: Option<&'static str> = None;
 
-    // V1 is intentionally linear: Lead, deterministic selection, then at most one Developer.
+    // The V2 workflow remains explicit and sequential: Lead, delegation, Developer, publication.
     match (input_result, lead_schema, developer_schema) {
         (Ok(request), Ok(lead_schema), Ok(developer_schema)) => {
             eprintln!("agent-factory: calling local Lead model");
@@ -76,12 +109,14 @@ fn run() -> Result<(), AppError> {
                     lead_status = StageStatus::Success;
                     lead_validation = ValidationStatus::Passed;
                     eprintln!("agent-factory: Lead response validated");
-
                     let delegation_result =
                         select_first_ready_task(&success.output).and_then(|task| {
                             let task_id = task.id.clone();
-                            let request_json =
-                                DeveloperRequest::from_task(task).to_bounded_json()?;
+                            let request_json = DeveloperRequestV2::from_task(
+                                task,
+                                &success.output.acceptance_criteria,
+                            )
+                            .to_bounded_json()?;
                             Ok((task_id, request_json))
                         });
                     lead_metrics = Some(success.metrics);
@@ -105,8 +140,29 @@ fn run() -> Result<(), AppError> {
                                     developer_status = StageStatus::Success;
                                     developer_validation = ValidationStatus::Passed;
                                     developer_metrics = Some(success.metrics);
-                                    developer_proposal = Some(success.output);
-                                    eprintln!("agent-factory: Developer proposal validated");
+                                    generated_file_count = success.output.files.len();
+                                    generated_bytes = success.output.total_bytes();
+                                    eprintln!("agent-factory: Developer workspace validated");
+                                    workspace_status = StageStatus::Failure;
+                                    eprintln!("agent-factory: publishing isolated workspace");
+                                    match publish_workspace(
+                                        &config.workspace_directory,
+                                        &run_id,
+                                        &success.output,
+                                    ) {
+                                        Ok(published) => {
+                                            workspace_status = StageStatus::Success;
+                                            eprintln!(
+                                                "agent-factory: workspace published to {}",
+                                                published.relative_path
+                                            );
+                                            published_workspace = Some(published);
+                                        }
+                                        Err(error) => {
+                                            terminal_error = Some(error);
+                                            failure_stage = Some("workspace");
+                                        }
+                                    }
                                 }
                                 Err(failure) => {
                                     developer_validation = validation_status(&failure.error);
@@ -143,7 +199,7 @@ fn run() -> Result<(), AppError> {
 
     let finished_at = Utc::now();
     eprintln!("agent-factory: writing execution report");
-    let report_path = write_report(
+    let report_result = write_report(
         &config.report_directory,
         ReportData {
             run_id: &run_id,
@@ -162,11 +218,26 @@ fn run() -> Result<(), AppError> {
             developer_status,
             developer_validation,
             developer_metrics: developer_metrics.as_ref(),
-            developer_proposal: developer_proposal.as_ref(),
+            generated_file_count,
+            generated_bytes,
+            workspace_status,
+            published_workspace: published_workspace.as_ref(),
             failure_stage,
             error: terminal_error.as_ref(),
         },
-    )?;
+    );
+    let report_path = match report_result {
+        Ok(path) => path,
+        Err(error) => {
+            if let Some(workspace) = &published_workspace {
+                eprintln!(
+                    "agent-factory: report failed after workspace publication; workspace retained at {}",
+                    workspace.relative_path
+                );
+            }
+            return Err(error);
+        }
+    };
     eprintln!("agent-factory: report written to {}", report_path.display());
     if let Some(error) = terminal_error {
         return Err(error);

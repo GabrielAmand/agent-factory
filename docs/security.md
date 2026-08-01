@@ -21,6 +21,14 @@ V1 has no subprocess, shell, Git, command-runner, file-applier, source-file acce
 
 The Developer receives only the selected task ID, title, objective, and acceptance criteria. Proposed paths pass a conservative lexical policy that excludes internal control directories, report/build directories, traversal, and common secret-sensitive names. A valid path remains data in a report: it neither authorizes nor causes a filesystem read or write.
 
+The workspace-generation slice additionally sends the Lead's top-level acceptance criteria. The Developer can return contents only for four fixed filenames. Rust validates the entire bundle before creating a staging directory and is the only component that writes generated files. Per-file and total byte limits, fixed filenames, cross-file checks, browser-network restrictions, and secret-sensitive patterns fail closed. Secret-pattern detection is defense in depth only: arbitrary secrets embedded in text cannot be detected reliably, so this check is not a complete security boundary and users must not submit secrets.
+
+Generated sites may make same-origin localhost requests for their four assets. External URLs, CDNs, remote APIs, external media, WebSockets, EventSource, beacons, and forms are forbidden by validation and the fixed CSP. Preview binds only to `127.0.0.1`, preloads one canonical run directory, serves five fixed routes read-only, and cannot browse the filesystem. These application controls do not replace OS-enforced filesystem and network isolation.
+
+Cross-file DOM checks reject empty or duplicate literal HTML IDs, multiple `id` attributes on one element, missing application body markup, and absent targets for recognized direct literal DOM lookups. The scanner ignores complete HTML comments and content inside `script`, `style`, `textarea`, `title`, and `template`; template contents are treated as inert. Unterminated comments, malformed tags, unclosed handled raw or inert elements, multiple bodies, and missing body closure fail closed.
+
+This deliberately small scanner is not a browser parser and does not execute JavaScript. It cannot prove dynamic, computed, aliased, escaped, compound, or otherwise indirect selectors. Such selectors are not rejected unless they also contain a recognized required direct lookup. Conversely, direct-call text inside a JavaScript comment or string can be recognized and conservatively rejected as though it were executable. Browser-level validation remains a later deterministic testing concern.
+
 ## Role isolation
 
 The Lead cannot implement code. The Developer cannot authorize commands. The runner is deterministic and cannot expand its own allowlist. The Reviewer reports findings but cannot silently alter the reviewed change.
@@ -44,7 +52,7 @@ Run V1 with a profile that:
 - uses a dedicated, unprivileged user with no administrative rights;
 - exposes no Git credentials, SSH keys, cloud credentials, kubeconfig files, credential helpers, agent sockets, or unrelated home-directory content;
 - mounts or permits the executable, configuration, prompt, and schema as read-only;
-- grants write access only to the validated report directory and necessary OS temporary storage;
+- grants write access only to the validated report and workspace directories and necessary OS temporary storage;
 - denies filesystem traversal outside explicitly mounted or allowed paths;
 - permits network connections only to the selected loopback Ollama port and denies remote network access;
 - denies subprocess creation and prevents gaining additional privileges;

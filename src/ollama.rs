@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use crate::config::Config;
 use crate::error::{AppError, ErrorKind};
-use crate::protocol::{DeveloperProposal, LeadResponse};
+use crate::protocol::{DeveloperWorkspace, LeadResponse};
 
 const MAX_RESPONSE_BYTES: u64 = 1024 * 1024;
 const MAX_DEVELOPER_HTTP_REQUEST_BYTES: usize = 64 * 1024;
@@ -92,7 +92,7 @@ pub fn call_developer(
     selected_task_id: &str,
     prompt: &str,
     schema: &Value,
-) -> Result<RoleSuccess<DeveloperProposal>, OllamaFailure> {
+) -> Result<RoleSuccess<DeveloperWorkspace>, OllamaFailure> {
     let envelope = send_chat(
         config,
         &config.developer_model,
@@ -102,11 +102,12 @@ pub fn call_developer(
         Some(MAX_DEVELOPER_HTTP_REQUEST_BYTES),
     )?;
     let metrics = metrics_from(&envelope);
-    let output = DeveloperProposal::parse_and_validate(&envelope.message.content, selected_task_id)
-        .map_err(|error| OllamaFailure {
-            error: Box::new(error),
-            metrics: Some(metrics_from(&envelope)),
-        })?;
+    let output =
+        DeveloperWorkspace::parse_and_validate(&envelope.message.content, selected_task_id)
+            .map_err(|error| OllamaFailure {
+                error: Box::new(error),
+                metrics: Some(metrics_from(&envelope)),
+            })?;
     Ok(RoleSuccess { output, metrics })
 }
 

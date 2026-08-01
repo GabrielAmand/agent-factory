@@ -30,6 +30,10 @@ Phase 2 is complete when both role contracts and payload limits fail closed, lat
 
 ## Phase 3: Deterministic local runner and application design
 
+Before a command runner, generate one fixed four-file static website bundle and publish it through trusted Rust to a new isolated run workspace. Validate all contents before mutation, publish through a staging-directory rename, preserve existing workspaces, and provide a read-only `127.0.0.1` preview server. Store only artifact metadata in execution-report-v3. This slice adds no command execution, target-repository access, Git, Reviewer, retry, async, or concurrency.
+
+After the workspace slice:
+
 - Design a deterministic file applier before allowing proposal application.
 - Introduce an explicit command allowlist and argument validation only after separate approval.
 - Require human approval for classified risky actions.

@@ -8,16 +8,17 @@ use serde::Serialize;
 use crate::error::{AppError, ErrorKind};
 use crate::ollama::OllamaMetrics;
 use crate::protocol::{
-    DEVELOPER_REQUEST_VERSION, DEVELOPER_SCHEMA_VERSION, DeveloperProposal, LEAD_SCHEMA_VERSION,
-    LeadResponse,
+    DEVELOPER_REQUEST_VERSION, DEVELOPER_SCHEMA_VERSION, LEAD_SCHEMA_VERSION, LeadResponse,
 };
+use crate::workspace::PublishedWorkspace;
 
-pub const REPORT_VERSION: &str = "execution-report-v2";
-pub const TRANSMITTED_FIELDS: [&str; 4] = [
+pub const REPORT_VERSION: &str = "execution-report-v3";
+pub const TRANSMITTED_FIELDS: [&str; 5] = [
     "selected_task_id",
     "selected_task_title",
     "selected_task_objective",
     "selected_task_acceptance_criteria",
+    "lead_acceptance_criteria",
 ];
 
 #[derive(Clone, Copy, Serialize)]
@@ -44,20 +45,20 @@ pub enum ValidationStatus {
 }
 
 #[derive(Serialize)]
-pub struct FailureSummary {
+struct FailureSummary {
     stage: &'static str,
     kind: ErrorKind,
     cause: String,
 }
 
 #[derive(Serialize)]
-pub struct InputMeasurements {
+struct InputMeasurements {
     bytes: usize,
     characters: usize,
 }
 
 #[derive(Serialize)]
-pub struct LeadRoleReport<'a> {
+struct LeadRoleReport<'a> {
     status: StageStatus,
     validation: ValidationStatus,
     model: &'a str,
@@ -67,26 +68,54 @@ pub struct LeadRoleReport<'a> {
 }
 
 #[derive(Serialize)]
-pub struct DelegationReport<'a> {
+struct DelegationReport<'a> {
     status: StageStatus,
     selected_task_id: Option<&'a str>,
     request_version: &'static str,
     request_json_bytes: Option<usize>,
-    transmitted_fields: [&'static str; 4],
+    transmitted_fields: [&'static str; 5],
 }
 
 #[derive(Serialize)]
-pub struct DeveloperRoleReport<'a> {
+struct DeveloperRoleReport<'a> {
     status: StageStatus,
     validation: ValidationStatus,
     model: &'a str,
     schema_version: &'static str,
     metrics: Option<&'a OllamaMetrics>,
-    proposal: Option<&'a DeveloperProposal>,
 }
 
 #[derive(Serialize)]
-pub struct ExecutionReport<'a> {
+struct ArtifactValidationReport {
+    status: ValidationStatus,
+    failure_count: usize,
+    failure_codes: Vec<&'static str>,
+    file_count: usize,
+    generated_bytes: usize,
+}
+
+#[derive(Serialize)]
+struct WorkspaceFileReport<'a> {
+    path: &'a str,
+    bytes: usize,
+}
+
+#[derive(Serialize)]
+struct WorkspaceReport<'a> {
+    status: StageStatus,
+    relative_path: Option<&'a str>,
+    creation_duration_ms: Option<u64>,
+    files: Vec<WorkspaceFileReport<'a>>,
+}
+
+#[derive(Serialize)]
+struct PreviewReport {
+    status: &'static str,
+    human_approval: &'static str,
+}
+
+#[derive(Serialize)]
+struct ExecutionReport<'a> {
     report_version: &'static str,
     run_id: &'a str,
     status: ReportStatus,
@@ -97,6 +126,9 @@ pub struct ExecutionReport<'a> {
     lead: LeadRoleReport<'a>,
     delegation: DelegationReport<'a>,
     developer: DeveloperRoleReport<'a>,
+    artifact_validation: ArtifactValidationReport,
+    workspace: WorkspaceReport<'a>,
+    preview: PreviewReport,
     failure: Option<FailureSummary>,
 }
 
@@ -117,12 +149,42 @@ pub struct ReportData<'a> {
     pub developer_status: StageStatus,
     pub developer_validation: ValidationStatus,
     pub developer_metrics: Option<&'a OllamaMetrics>,
-    pub developer_proposal: Option<&'a DeveloperProposal>,
+    pub generated_file_count: usize,
+    pub generated_bytes: usize,
+    pub workspace_status: StageStatus,
+    pub published_workspace: Option<&'a PublishedWorkspace>,
     pub failure_stage: Option<&'static str>,
     pub error: Option<&'a AppError>,
 }
 
 pub fn write_report(directory: &Path, data: ReportData<'_>) -> Result<PathBuf, AppError> {
+    let artifact_status = if data.generated_file_count == 4 {
+        ValidationStatus::Passed
+    } else if matches!(data.developer_validation, ValidationStatus::Failed) {
+        ValidationStatus::Failed
+    } else {
+        ValidationStatus::NotAttempted
+    };
+    let artifact_failed = matches!(artifact_status, ValidationStatus::Failed);
+    let artifact_failure_codes = if artifact_failed {
+        vec![
+            data.error
+                .and_then(AppError::code)
+                .unwrap_or("developer_workspace_invalid"),
+        ]
+    } else {
+        vec![]
+    };
+    let workspace_files = data.published_workspace.map_or_else(Vec::new, |workspace| {
+        workspace
+            .files
+            .iter()
+            .map(|file| WorkspaceFileReport {
+                path: &file.path,
+                bytes: file.bytes,
+            })
+            .collect()
+    });
     let report = ExecutionReport {
         report_version: REPORT_VERSION,
         run_id: data.run_id,
@@ -161,7 +223,27 @@ pub fn write_report(directory: &Path, data: ReportData<'_>) -> Result<PathBuf, A
             model: data.developer_model,
             schema_version: DEVELOPER_SCHEMA_VERSION,
             metrics: data.developer_metrics,
-            proposal: data.developer_proposal,
+        },
+        artifact_validation: ArtifactValidationReport {
+            status: artifact_status,
+            failure_count: usize::from(artifact_failed),
+            failure_codes: artifact_failure_codes,
+            file_count: data.generated_file_count,
+            generated_bytes: data.generated_bytes,
+        },
+        workspace: WorkspaceReport {
+            status: data.workspace_status,
+            relative_path: data
+                .published_workspace
+                .map(|workspace| workspace.relative_path.as_str()),
+            creation_duration_ms: data
+                .published_workspace
+                .map(|workspace| workspace.creation_duration.as_millis() as u64),
+            files: workspace_files,
+        },
+        preview: PreviewReport {
+            status: "not_started",
+            human_approval: "pending",
         },
         failure: data.error.map(|error| FailureSummary {
             stage: data.failure_stage.unwrap_or("unknown"),
@@ -222,29 +304,25 @@ fn write_atomically(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::{LeadResponse, LeadTask};
+    use crate::workspace::{PublishedFile, PublishedWorkspace};
     use chrono::TimeZone;
     use tempfile::TempDir;
 
     #[test]
-    fn v2_report_preserves_lead_success_when_developer_fails_without_raw_data() {
+    fn v3_report_keeps_metadata_but_omits_generated_contents_and_raw_data() {
         let directory = TempDir::new().unwrap();
         let time = Utc.with_ymd_and_hms(2026, 1, 2, 3, 4, 5).unwrap();
         let metrics = OllamaMetrics {
             prompt_eval_count: Some(3),
             ..Default::default()
         };
-        let lead_response = LeadResponse {
-            summary: "validated lead summary".to_owned(),
-            assumptions: vec![],
-            acceptance_criteria: vec!["validated lead criterion".to_owned()],
-            tasks: vec![LeadTask {
-                id: "task-1".to_owned(),
-                title: "Validated lead task".to_owned(),
-                objective: "Describe the proposed change.".to_owned(),
-                acceptance_criteria: vec!["The proposal is testable.".to_owned()],
-                depends_on: vec![],
+        let published = PublishedWorkspace {
+            relative_path: "workspaces/run-test".to_owned(),
+            files: vec![PublishedFile {
+                path: "index.html".to_owned(),
+                bytes: 42,
             }],
+            creation_duration: std::time::Duration::from_millis(7),
         };
         let path = write_report(
             directory.path(),
@@ -252,12 +330,114 @@ mod tests {
                 run_id: "test-run",
                 started_at: time,
                 finished_at: time,
-                input: "private raw user request",
+                input: "private raw request",
                 lead_model: "lead",
                 lead_status: StageStatus::Success,
                 lead_validation: ValidationStatus::Passed,
                 lead_metrics: Some(&metrics),
-                lead_response: Some(&lead_response),
+                lead_response: None,
+                delegation_status: StageStatus::Success,
+                selected_task_id: Some("task-1"),
+                developer_request_bytes: Some(100),
+                developer_model: "developer",
+                developer_status: StageStatus::Success,
+                developer_validation: ValidationStatus::Passed,
+                developer_metrics: Some(&metrics),
+                generated_file_count: 4,
+                generated_bytes: 42,
+                workspace_status: StageStatus::Success,
+                published_workspace: Some(&published),
+                failure_stage: None,
+                error: None,
+            },
+        )
+        .unwrap();
+        let contents = fs::read_to_string(path).unwrap();
+        assert!(contents.contains("execution-report-v3"));
+        assert!(contents.contains("workspaces/run-test"));
+        assert!(contents.contains("\"human_approval\": \"pending\""));
+        assert!(!contents.contains("private raw request"));
+        assert!(!contents.contains("generated secret content"));
+        assert!(!contents.contains("content\""));
+    }
+
+    #[test]
+    fn workspace_failure_preserves_completed_role_results() {
+        let directory = TempDir::new().unwrap();
+        let time = Utc.with_ymd_and_hms(2026, 1, 2, 3, 4, 5).unwrap();
+        let metrics = OllamaMetrics {
+            eval_count: Some(7),
+            ..Default::default()
+        };
+        let error = AppError::new(ErrorKind::Workspace, "staging failed");
+        let path = write_report(
+            directory.path(),
+            ReportData {
+                run_id: "failed-run",
+                started_at: time,
+                finished_at: time,
+                input: "private raw request",
+                lead_model: "lead-model",
+                lead_status: StageStatus::Success,
+                lead_validation: ValidationStatus::Passed,
+                lead_metrics: Some(&metrics),
+                lead_response: None,
+                delegation_status: StageStatus::Success,
+                selected_task_id: Some("task-1"),
+                developer_request_bytes: Some(100),
+                developer_model: "developer-model",
+                developer_status: StageStatus::Success,
+                developer_validation: ValidationStatus::Passed,
+                developer_metrics: Some(&metrics),
+                generated_file_count: 4,
+                generated_bytes: 1234,
+                workspace_status: StageStatus::Failure,
+                published_workspace: None,
+                failure_stage: Some("workspace"),
+                error: Some(&error),
+            },
+        )
+        .unwrap();
+        let report: serde_json::Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(report["status"], "failure");
+        assert_eq!(report["lead"]["status"], "success");
+        assert_eq!(report["lead"]["validation"], "passed");
+        assert_eq!(report["lead"]["metrics"]["eval_count"], 7);
+        assert_eq!(report["developer"]["status"], "success");
+        assert_eq!(report["developer"]["validation"], "passed");
+        assert_eq!(report["developer"]["metrics"]["eval_count"], 7);
+        assert_eq!(report["artifact_validation"]["status"], "passed");
+        assert_eq!(report["artifact_validation"]["generated_bytes"], 1234);
+        assert_eq!(report["workspace"]["status"], "failure");
+        assert_eq!(report["failure"]["stage"], "workspace");
+        assert!(
+            !serde_json::to_string(&report)
+                .unwrap()
+                .contains("private raw request")
+        );
+    }
+
+    #[test]
+    fn developer_validation_report_uses_the_stable_error_code() {
+        let directory = TempDir::new().unwrap();
+        let time = Utc.with_ymd_and_hms(2026, 1, 2, 3, 4, 5).unwrap();
+        let error = AppError::coded(
+            ErrorKind::Validation,
+            "missing_dom_target",
+            "required target is absent",
+        );
+        let path = write_report(
+            directory.path(),
+            ReportData {
+                run_id: "invalid-run",
+                started_at: time,
+                finished_at: time,
+                input: "private raw request",
+                lead_model: "lead",
+                lead_status: StageStatus::Success,
+                lead_validation: ValidationStatus::Passed,
+                lead_metrics: None,
+                lead_response: None,
                 delegation_status: StageStatus::Success,
                 selected_task_id: Some("task-1"),
                 developer_request_bytes: Some(100),
@@ -265,29 +445,23 @@ mod tests {
                 developer_status: StageStatus::Failure,
                 developer_validation: ValidationStatus::Failed,
                 developer_metrics: None,
-                developer_proposal: None,
+                generated_file_count: 0,
+                generated_bytes: 0,
+                workspace_status: StageStatus::NotAttempted,
+                published_workspace: None,
                 failure_stage: Some("developer"),
-                error: Some(&AppError::new(ErrorKind::Validation, "compact cause")),
+                error: Some(&error),
             },
         )
         .unwrap();
-        let contents = fs::read_to_string(path).unwrap();
-        let report: serde_json::Value = serde_json::from_str(&contents).unwrap();
-
-        assert_eq!(report["lead"]["status"], "success");
-        assert_eq!(report["lead"]["validation"], "passed");
-        assert_eq!(report["lead"]["model"], "lead");
-        assert_eq!(report["lead"]["metrics"]["prompt_eval_count"], 3);
+        let report: serde_json::Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
         assert_eq!(
-            report["lead"]["response"]["summary"],
-            "validated lead summary"
+            report["artifact_validation"]["failure_codes"],
+            serde_json::json!(["missing_dom_target"])
         );
-        assert_eq!(report["developer"]["status"], "failure");
-        assert_eq!(report["developer"]["validation"], "failed");
-        assert!(!contents.contains("private raw user request"));
-        assert!(!contents.contains("private raw prompt"));
-        assert!(!contents.contains("private raw model response"));
-        assert!(contents.contains("execution-report-v2"));
-        assert!(!directory.path().join(".test-run.tmp").exists());
+        assert_eq!(
+            report["failure"]["cause"],
+            "missing_dom_target: required target is absent"
+        );
     }
 }
