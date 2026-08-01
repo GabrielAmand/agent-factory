@@ -2,15 +2,129 @@
   "registry_version": "official-source-registry-v1",
   "policy_id": "official-devops-tools-v1",
   "topic": "devops-tools",
-  "approval_status": "pending",
+  "approval_status": "approved",
   "entries": [
-    { "source_id": "docker-official", "fact_id": "docker", "display_name": "Docker", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
-    { "source_id": "kubernetes-official", "fact_id": "kubernetes", "display_name": "Kubernetes", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
-    { "source_id": "terraform-official", "fact_id": "terraform", "display_name": "Terraform", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
-    { "source_id": "ansible-official", "fact_id": "ansible", "display_name": "Ansible", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
-    { "source_id": "jenkins-official", "fact_id": "jenkins", "display_name": "Jenkins", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
-    { "source_id": "gitlab-ci-official", "fact_id": "gitlab-ci", "display_name": "GitLab CI", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
-    { "source_id": "prometheus-official", "fact_id": "prometheus", "display_name": "Prometheus", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" },
-    { "source_id": "argo-cd-official", "fact_id": "argo-cd", "display_name": "Argo CD", "verification": "pending_authoritative_verification", "allowed_https_domain": null, "allowed_path_prefixes": [], "canonical_official_url": null, "canonical_source_url": null, "redirect_policy": "same_approved_domain_only" }
+    {
+      "source_id": "docker-official",
+      "fact_id": "docker",
+      "display_name": "Docker",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        { "host": "www.docker.com", "allowed_path_prefixes": ["/"] },
+        { "host": "docs.docker.com", "allowed_path_prefixes": ["/"] }
+      ],
+      "canonical_official_url": "https://www.docker.com/",
+      "canonical_source_url": "https://docs.docker.com/",
+      "redirect_policy": "same_approved_host_only"
+    },
+    {
+      "source_id": "kubernetes-official",
+      "fact_id": "kubernetes",
+      "display_name": "Kubernetes",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        {
+          "host": "kubernetes.io",
+          "allowed_path_prefixes": ["/", "/docs/home"]
+        }
+      ],
+      "canonical_official_url": "https://kubernetes.io/",
+      "canonical_source_url": "https://kubernetes.io/docs/home/",
+      "redirect_policy": "same_approved_host_only"
+    },
+    {
+      "source_id": "terraform-official",
+      "fact_id": "terraform",
+      "display_name": "Terraform",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        {
+          "host": "developer.hashicorp.com",
+          "allowed_path_prefixes": ["/terraform"]
+        }
+      ],
+      "canonical_official_url": "https://developer.hashicorp.com/terraform",
+      "canonical_source_url": "https://developer.hashicorp.com/terraform/docs",
+      "redirect_policy": "same_approved_host_only"
+    },
+    {
+      "source_id": "ansible-official",
+      "fact_id": "ansible",
+      "display_name": "Ansible",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        {
+          "host": "docs.ansible.com",
+          "allowed_path_prefixes": [
+            "/",
+            "/projects/ansible/latest/getting_started/introduction.html"
+          ]
+        }
+      ],
+      "canonical_official_url": "https://docs.ansible.com/",
+      "canonical_source_url": "https://docs.ansible.com/projects/ansible/latest/getting_started/introduction.html",
+      "redirect_policy": "same_approved_host_only"
+    },
+    {
+      "source_id": "jenkins-official",
+      "fact_id": "jenkins",
+      "display_name": "Jenkins",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        {
+          "host": "www.jenkins.io",
+          "allowed_path_prefixes": ["/", "/doc"]
+        }
+      ],
+      "canonical_official_url": "https://www.jenkins.io/",
+      "canonical_source_url": "https://www.jenkins.io/doc/",
+      "redirect_policy": "same_approved_host_only"
+    },
+    {
+      "source_id": "gitlab-ci-official",
+      "fact_id": "gitlab-ci",
+      "display_name": "GitLab CI",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        {
+          "host": "about.gitlab.com",
+          "allowed_path_prefixes": ["/solutions/continuous-integration"]
+        },
+        { "host": "docs.gitlab.com", "allowed_path_prefixes": ["/ci"] }
+      ],
+      "canonical_official_url": "https://about.gitlab.com/solutions/continuous-integration/",
+      "canonical_source_url": "https://docs.gitlab.com/ci/",
+      "redirect_policy": "same_approved_host_only"
+    },
+    {
+      "source_id": "prometheus-official",
+      "fact_id": "prometheus",
+      "display_name": "Prometheus",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        {
+          "host": "prometheus.io",
+          "allowed_path_prefixes": ["/", "/docs/introduction/overview"]
+        }
+      ],
+      "canonical_official_url": "https://prometheus.io/",
+      "canonical_source_url": "https://prometheus.io/docs/introduction/overview/",
+      "redirect_policy": "same_approved_host_only"
+    },
+    {
+      "source_id": "argo-cd-official",
+      "fact_id": "argo-cd",
+      "display_name": "Argo CD",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        {
+          "host": "argo-cd.readthedocs.io",
+          "allowed_path_prefixes": ["/en/stable"]
+        }
+      ],
+      "canonical_official_url": "https://argo-cd.readthedocs.io/en/stable/",
+      "canonical_source_url": "https://argo-cd.readthedocs.io/en/stable/getting_started/",
+      "redirect_policy": "same_approved_host_only"
+    }
   ]
 }

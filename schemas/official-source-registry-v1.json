@@ -16,17 +16,61 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["source_id", "fact_id", "display_name", "verification", "allowed_https_domain", "allowed_path_prefixes", "canonical_official_url", "canonical_source_url", "redirect_policy"],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "verification": { "const": "pending_authoritative_verification" }
+              }
+            },
+            "then": {
+              "properties": {
+                "allowed_https_hosts": { "maxItems": 0 },
+                "canonical_official_url": { "type": "null" },
+                "canonical_source_url": { "type": "null" }
+              }
+            },
+            "else": {
+              "properties": {
+                "allowed_https_hosts": { "minItems": 1 },
+                "canonical_official_url": { "type": "string" },
+                "canonical_source_url": { "type": "string" }
+              }
+            }
+          }
+        ],
+        "required": ["source_id", "fact_id", "display_name", "verification", "allowed_https_hosts", "canonical_official_url", "canonical_source_url", "redirect_policy"],
         "properties": {
           "source_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
           "fact_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
           "display_name": { "type": "string" },
-          "verification": { "enum": ["pending_authoritative_verification", "verified"] },
-          "allowed_https_domain": { "type": ["string", "null"] },
-          "allowed_path_prefixes": { "type": "array", "maxItems": 8, "items": { "type": "string" } },
+          "verification": { "enum": ["pending_authoritative_verification", "authoritative_verified"] },
+          "allowed_https_hosts": {
+            "type": "array",
+            "maxItems": 4,
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["host", "allowed_path_prefixes"],
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"
+                },
+                "allowed_path_prefixes": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "uniqueItems": true,
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          },
           "canonical_official_url": { "type": ["string", "null"] },
           "canonical_source_url": { "type": ["string", "null"] },
-          "redirect_policy": { "const": "same_approved_domain_only" }
+          "redirect_policy": { "const": "same_approved_host_only" }
         }
       }
     }

@@ -43,24 +43,30 @@ pub struct SourceEntry {
     pub fact_id: String,
     pub display_name: String,
     pub verification: VerificationStatus,
-    pub allowed_https_domain: Option<String>,
-    pub allowed_path_prefixes: Vec<String>,
+    pub allowed_https_hosts: Vec<AllowedHttpsHost>,
     pub canonical_official_url: Option<String>,
     pub canonical_source_url: Option<String>,
     pub redirect_policy: RedirectPolicy,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AllowedHttpsHost {
+    pub host: String,
+    pub allowed_path_prefixes: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum VerificationStatus {
     PendingAuthoritativeVerification,
-    Verified,
+    AuthoritativeVerified,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RedirectPolicy {
-    SameApprovedDomainOnly,
+    SameApprovedHostOnly,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -95,7 +101,7 @@ impl OfficialSourceRegistry {
         let pending = self
             .entries
             .iter()
-            .any(|entry| entry.verification != VerificationStatus::Verified);
+            .any(|entry| entry.verification != VerificationStatus::AuthoritativeVerified);
         let verified_fields_complete = self.entries.iter().all(SourceEntry::is_retrieval_complete);
         RegistryReadiness {
             structurally_valid: true,
@@ -155,16 +161,18 @@ impl OfficialSourceRegistry {
 
 impl SourceEntry {
     fn is_retrieval_complete(&self) -> bool {
-        self.allowed_https_domain.is_some()
-            && !self.allowed_path_prefixes.is_empty()
+        !self.allowed_https_hosts.is_empty()
+            && self
+                .allowed_https_hosts
+                .iter()
+                .all(|host| !host.allowed_path_prefixes.is_empty())
             && self.canonical_official_url.is_some()
             && self.canonical_source_url.is_some()
     }
 
     fn validate_policy_fields(&self) -> Result<(), AppError> {
         if self.verification == VerificationStatus::PendingAuthoritativeVerification {
-            if self.allowed_https_domain.is_some()
-                || !self.allowed_path_prefixes.is_empty()
+            if !self.allowed_https_hosts.is_empty()
                 || self.canonical_official_url.is_some()
                 || self.canonical_source_url.is_some()
             {
@@ -173,43 +181,42 @@ impl SourceEntry {
             return Ok(());
         }
 
-        let domain = self
-            .allowed_https_domain
-            .as_deref()
-            .ok_or_else(|| AppError::new(ErrorKind::Validation, "verified entry lacks domain"))?;
-        validate_domain(domain)?;
-        if self.allowed_path_prefixes.is_empty() || self.allowed_path_prefixes.len() > 8 {
-            return validation("verified entry requires 1 to 8 path prefixes");
+        if self.allowed_https_hosts.is_empty() || self.allowed_https_hosts.len() > 4 {
+            return validation("verified entry requires 1 to 4 exact HTTPS hosts");
         }
-        for prefix in &self.allowed_path_prefixes {
-            if !prefix.starts_with('/')
-                || prefix.len() > MAX_PATH_PREFIX_BYTES
-                || prefix.contains(['?', '#', '\\'])
-                || prefix.split('/').any(|part| part == "..")
-                || !prefix.bytes().all(|byte| {
-                    byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'.' | b'-' | b'_')
-                })
+        let mut hosts = HashSet::new();
+        for allowed_host in &self.allowed_https_hosts {
+            validate_domain(&allowed_host.host)?;
+            if !hosts.insert(allowed_host.host.as_str()) {
+                return validation("approved HTTPS hosts must be unique within an entry");
+            }
+            if allowed_host.allowed_path_prefixes.is_empty()
+                || allowed_host.allowed_path_prefixes.len() > 8
             {
-                return validation("invalid allowed path prefix");
+                return validation("each approved host requires 1 to 8 path prefixes");
+            }
+            let mut prefixes = HashSet::new();
+            for prefix in &allowed_host.allowed_path_prefixes {
+                validate_path_prefix(prefix)?;
+                if !prefixes.insert(prefix.as_str()) {
+                    return validation("path prefixes must be unique within an approved host");
+                }
             }
         }
         validate_canonical_url(
             self.canonical_official_url.as_deref(),
-            domain,
-            &self.allowed_path_prefixes,
+            &self.allowed_https_hosts,
         )?;
         validate_canonical_url(
             self.canonical_source_url.as_deref(),
-            domain,
-            &self.allowed_path_prefixes,
+            &self.allowed_https_hosts,
         )
     }
 }
 
 fn validate_canonical_url(
     value: Option<&str>,
-    domain: &str,
-    prefixes: &[String],
+    allowed_hosts: &[AllowedHttpsHost],
 ) -> Result<(), AppError> {
     let raw = value.ok_or_else(|| {
         AppError::new(ErrorKind::Validation, "verified entry lacks canonical URL")
@@ -219,23 +226,52 @@ fn validate_canonical_url(
     }
     let url = Url::parse(raw)
         .map_err(|error| AppError::new(ErrorKind::Validation, format!("invalid URL: {error}")))?;
+    let matching_host = url
+        .host_str()
+        .and_then(|host| allowed_hosts.iter().find(|allowed| allowed.host == host));
     if url.scheme() != "https"
-        || url.host_str() != Some(domain)
         || !url.username().is_empty()
         || url.password().is_some()
+        || url.port().is_some()
         || url.query().is_some()
         || url.fragment().is_some()
-        || !prefixes.iter().any(|prefix| {
-            url.path() == prefix
-                || url
-                    .path()
-                    .strip_prefix(prefix)
-                    .is_some_and(|suffix| suffix.starts_with('/'))
-        })
+        || url.as_str() != raw
     {
         return validation("canonical URL violates registry policy");
     }
+    let Some(allowed_host) = matching_host else {
+        return validation("canonical URL host is not exactly approved");
+    };
+    if !allowed_host
+        .allowed_path_prefixes
+        .iter()
+        .any(|prefix| path_matches_prefix(url.path(), prefix))
+    {
+        return validation("canonical URL path violates its exact host policy");
+    }
     Ok(())
+}
+
+fn validate_path_prefix(prefix: &str) -> Result<(), AppError> {
+    if !prefix.starts_with('/')
+        || prefix.len() > MAX_PATH_PREFIX_BYTES
+        || (prefix.len() > 1 && prefix.ends_with('/'))
+        || prefix.contains(['?', '#', '\\'])
+        || prefix.split('/').any(|part| part == "..")
+        || !prefix
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'.' | b'-' | b'_'))
+    {
+        return validation("invalid allowed path prefix");
+    }
+    Ok(())
+}
+
+fn path_matches_prefix(path: &str, prefix: &str) -> bool {
+    path == prefix
+        || path
+            .strip_prefix(prefix)
+            .is_some_and(|suffix| suffix.starts_with('/'))
 }
 
 fn validate_domain(domain: &str) -> Result<(), AppError> {
@@ -281,7 +317,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn project_registry_is_pending_and_not_retrieval_ready() {
+    fn project_registry_is_complete_verified_approved_and_retrieval_ready() {
         let registry = OfficialSourceRegistry::parse_and_validate(include_str!(
             "../official-sources/official-devops-tools-v1.json"
         ))
@@ -291,14 +327,13 @@ mod tests {
             RegistryReadiness {
                 structurally_valid: true,
                 complete: true,
-                authoritative_verification_pending: true,
-                retrieval_ready: false,
+                authoritative_verification_pending: false,
+                retrieval_ready: true,
             }
         );
-        assert_eq!(
-            registry.require_retrieval_ready().unwrap_err().code(),
-            Some("registry_not_retrieval_ready")
-        );
+        assert!(registry.require_retrieval_ready().is_ok());
+        assert_eq!(registry.entries[0].allowed_https_hosts.len(), 2);
+        assert_eq!(registry.entries[5].allowed_https_hosts.len(), 2);
     }
 
     #[test]
@@ -316,11 +351,18 @@ mod tests {
 
     #[test]
     fn retrieval_ready_fixture_is_complete_verified_and_approved() {
-        let registry = OfficialSourceRegistry::parse_and_validate(include_str!(
+        let mut registry = OfficialSourceRegistry::parse_and_validate(include_str!(
             "../tests/fixtures/e0/registry-valid.json"
         ))
         .unwrap();
         assert!(registry.readiness().retrieval_ready);
+
+        registry.approval_status = ApprovalStatus::Pending;
+        assert!(!registry.readiness().retrieval_ready);
+        registry.approval_status = ApprovalStatus::Approved;
+        registry.entries[0].verification = VerificationStatus::PendingAuthoritativeVerification;
+        assert!(registry.readiness().authoritative_verification_pending);
+        assert!(!registry.readiness().retrieval_ready);
     }
 
     #[test]
@@ -332,8 +374,40 @@ mod tests {
             include_str!("../tests/fixtures/e0/registry-invalid-host.json"),
             include_str!("../tests/fixtures/e0/registry-invalid-path-prefix.json"),
             include_str!("../tests/fixtures/e0/registry-invalid-canonical-url.json"),
+            include_str!("../tests/fixtures/e0/registry-duplicate-host.json"),
+            include_str!("../tests/fixtures/e0/registry-empty-hosts.json"),
+            include_str!("../tests/fixtures/e0/registry-host-suffix-attempt.json"),
+            include_str!("../tests/fixtures/e0/registry-invalid-redirect-policy.json"),
         ] {
             assert!(OfficialSourceRegistry::parse_and_validate(fixture).is_err());
         }
+    }
+
+    #[test]
+    fn host_matching_is_exact_and_never_uses_suffixes() {
+        let allowed = vec![AllowedHttpsHost {
+            host: "docs.example.test".to_owned(),
+            allowed_path_prefixes: vec!["/docs".to_owned()],
+        }];
+        assert!(
+            validate_canonical_url(Some("https://docs.example.test/docs/start"), &allowed).is_ok()
+        );
+        for rejected in [
+            "https://evil.docs.example.test/docs/start",
+            "https://docs.example.test.evil.test/docs/start",
+            "https://example.test/docs/start",
+            "https://DOCS.example.test/docs/start",
+        ] {
+            assert!(validate_canonical_url(Some(rejected), &allowed).is_err());
+        }
+    }
+
+    #[test]
+    fn path_prefix_matching_respects_component_boundaries_and_root_is_exact() {
+        assert!(path_matches_prefix("/ci", "/ci"));
+        assert!(path_matches_prefix("/ci/pipelines", "/ci"));
+        assert!(!path_matches_prefix("/ci-evil", "/ci"));
+        assert!(path_matches_prefix("/", "/"));
+        assert!(!path_matches_prefix("/anything", "/"));
     }
 }
