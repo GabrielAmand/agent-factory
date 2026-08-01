@@ -45,7 +45,7 @@ It explicitly excludes the Developer, runner command execution, Reviewer, concur
 
 Phase 1 is one synchronous Rust binary crate. It uses a blocking `ureq` client to make exactly one native Ollama `POST /api/chat` request. The request is non-streaming and supplies a static, versioned JSON Schema through Ollama's structured-output `format` field. No async runtime or application framework is used.
 
-The program reads one user request from standard input. After trimming, the request must contain between 1 and 16,000 Unicode scalar values. The request is sent only to the configured Lead model and is not persisted in the execution report.
+The program reads one user request from standard input through a 64 KiB (65,536-byte) hard limit, with at most one additional byte read to detect overflow before allocating the complete input. After trimming, the request must contain between 1 and 16,000 Unicode scalar values. The byte limit is a transport and memory-safety bound; the character limit is the semantic contract. The request is sent only to the configured Lead model and is not persisted in the execution report.
 
 The Ollama endpoint must use plain HTTP and an explicit local host of `localhost`, `127.0.0.1`, or `::1`. Other spellings and hostnames are rejected even if they resolve to a loopback address. Credentials, query strings, fragments, and redirects are rejected. An explicit port is allowed and defaults to `11434`; the application constructs the `/api/chat` path itself.
 
@@ -65,11 +65,12 @@ Each task contains exactly these fields:
 - `id`: 1 to 32 ASCII characters, limited to lowercase letters, digits, and hyphens;
 - `title`: a string containing 1 to 200 Unicode scalar values;
 - `objective`: a string containing 1 to 2,000 Unicode scalar values;
-- `acceptance_criteria`: an array of 1 to 20 strings, each containing 1 to 1,000 Unicode scalar values.
+- `acceptance_criteria`: an array of 1 to 20 strings, each containing 1 to 1,000 Unicode scalar values;
+- `depends_on`: an array of 0 to 20 task IDs, using an empty array when the task has no dependency.
 
-Empty or whitespace-only strings are invalid. Task objects are planning and delegation records only; the contract contains no command, tool, patch, or executable-action field.
+Empty or whitespace-only strings are invalid. Every dependency must reference another task in the same response. Self-dependencies, duplicate dependencies, and duplicate task IDs are invalid. Phase 1 does not perform full dependency-cycle detection. Task objects are planning and delegation records only; the contract contains no command, tool, patch, or executable-action field.
 
-Rust validates the model response in layers: a static versioned JSON Schema guides Ollama structured output, strict `serde` types use `deny_unknown_fields`, and explicit Rust checks enforce semantic and size constraints. The first version does not add a runtime JSON Schema-validation framework. Invalid output fails closed and is not retried.
+Rust validates the model response in layers: a static versioned JSON Schema guides Ollama structured output, strict `serde` types use `deny_unknown_fields`, and explicit Rust checks enforce semantic and size constraints. Ollama 0.32.5 rejects the valid JSON Schema keyword `maxLength` while generating its constrained-output grammar, so the schema sent to Ollama intentionally omits every `maxLength`. All approved string maxima remain enforced explicitly in Rust. The generation schema is guidance and does not define the trust boundary; Rust deserialization and semantic validation are authoritative. The first version does not add a runtime JSON Schema-validation framework. Invalid output fails closed and is not retried.
 
 ### Configuration contract
 
@@ -77,7 +78,7 @@ Configuration is a root-level TOML file. Phase 1 configuration is limited to the
 
 ### Execution report contract
 
-Each report is versioned JSON written atomically beneath the validated report directory, using a UTC timestamp and run identifier in its filename. A report records status, timestamps, total duration, model name, schema version, validation outcome, compact failure information, input character and byte counts, and Ollama usage fields when supplied: prompt and output token counts plus reported durations.
+Each report is versioned JSON written atomically beneath the validated report directory, using a UTC timestamp and run identifier in its filename. A report records status, timestamps, total duration, model name, schema version, validation outcome, the validated structured Lead response on success, compact failure information, input character and byte counts, and Ollama usage fields when supplied: prompt and output token counts plus reported durations.
 
 Reports never contain the raw user request, prompts, raw HTTP or model responses, model reasoning, request or response headers, credentials, secrets, or environment dumps. Token counts come from Ollama's `prompt_eval_count` and `eval_count`; unavailable values remain absent rather than being estimated.
 

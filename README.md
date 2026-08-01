@@ -41,4 +41,24 @@ schemas/    Versioned JSON schemas (empty until the protocol is defined)
 
 ## Status
 
-The repository is at the documentation stage. No orchestrator implementation or dependency setup is included yet.
+Phase 1 V0 is a single synchronous Rust binary that calls one local Ollama Lead model, validates its structured response, and writes a local JSON execution report.
+
+## Phase 1 V0 usage
+
+Prerequisites are a Rust toolchain, a locally running Ollama server, and the model selected in `agent-factory.toml`. The default model is `gemma3`.
+
+Create the report directory before running:
+
+```text
+mkdir reports
+```
+
+Then provide one request on standard input:
+
+```text
+printf 'Describe a small implementation plan.' | cargo run
+```
+
+The application reads `agent-factory.toml` from the current repository root. It accepts only explicit loopback Ollama endpoints and writes reports beneath the configured, existing report directory. These application checks do not replace the OS sandbox recommended in the security documentation.
+
+Standard input is limited to 64 KiB before UTF-8 and semantic validation. After trimming, the request must still contain between 1 and 16,000 Unicode scalar values.
