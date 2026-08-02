@@ -8,7 +8,7 @@ use crate::error::{AppError, ErrorKind};
 pub const REGISTRY_VERSION: &str = "official-source-registry-v1";
 const MAX_REGISTRY_URL_BYTES: usize = 2_048;
 const MAX_PATH_PREFIX_BYTES: usize = 512;
-const EXPECTED_FACTS: [(&str, &str); 8] = [
+const V1_EXPECTED_FACTS: [(&str, &str); 8] = [
     ("docker", "Docker"),
     ("kubernetes", "Kubernetes"),
     ("terraform", "Terraform"),
@@ -17,6 +17,14 @@ const EXPECTED_FACTS: [(&str, &str); 8] = [
     ("gitlab-ci", "GitLab CI"),
     ("prometheus", "Prometheus"),
     ("argo-cd", "Argo CD"),
+];
+const V2_EXPECTED_FACTS: [(&str, &str); 6] = [
+    ("docker", "Docker"),
+    ("kubernetes", "Kubernetes"),
+    ("terraform", "Terraform"),
+    ("jenkins", "Jenkins"),
+    ("gitlab-ci", "GitLab CI"),
+    ("prometheus", "Prometheus"),
 ];
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -111,14 +119,14 @@ impl OfficialSourceRegistry {
     }
 
     pub fn readiness(&self) -> RegistryReadiness {
-        let complete = self.entries.len() == EXPECTED_FACTS.len()
-            && self
-                .entries
-                .iter()
-                .zip(EXPECTED_FACTS)
-                .all(|(entry, expected)| {
-                    entry.fact_id == expected.0 && entry.display_name == expected.1
-                });
+        let expected = expected_facts(&self.policy_id);
+        let complete =
+            expected.is_some_and(|expected| self.entries.len() == expected.len())
+                && self.entries.iter().zip(expected.unwrap_or_default()).all(
+                    |(entry, expected)| {
+                        entry.fact_id == expected.0 && entry.display_name == expected.1
+                    },
+                );
         let pending = self
             .entries
             .iter()
@@ -148,7 +156,7 @@ impl OfficialSourceRegistry {
 
     fn validate_structure(&self) -> Result<(), AppError> {
         if self.registry_version != REGISTRY_VERSION
-            || self.policy_id != "official-devops-tools-v1"
+            || expected_facts(&self.policy_id).is_none()
             || self.topic != "devops-tools"
         {
             return validation("unsupported registry version, policy, or topic");
@@ -177,6 +185,14 @@ impl OfficialSourceRegistry {
             entry.validate_policy_fields()?;
         }
         Ok(())
+    }
+}
+
+fn expected_facts(policy_id: &str) -> Option<&'static [(&'static str, &'static str)]> {
+    match policy_id {
+        "official-devops-tools-v1" => Some(&V1_EXPECTED_FACTS),
+        "official-devops-tools-v2" => Some(&V2_EXPECTED_FACTS),
+        _ => None,
     }
 }
 
@@ -384,6 +400,36 @@ mod tests {
         assert!(registry.require_retrieval_ready().is_ok());
         assert_eq!(registry.entries[0].allowed_https_hosts.len(), 2);
         assert_eq!(registry.entries[5].allowed_https_hosts.len(), 2);
+    }
+
+    #[test]
+    fn h0_v2_registry_is_complete_ordered_and_excludes_rate_limited_sources() {
+        let registry = OfficialSourceRegistry::parse_and_validate(include_str!(
+            "../official-sources/official-devops-tools-v2.json"
+        ))
+        .unwrap();
+        assert!(registry.readiness().retrieval_ready);
+        assert_eq!(
+            registry
+                .entries
+                .iter()
+                .map(|entry| entry.fact_id.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "docker",
+                "kubernetes",
+                "terraform",
+                "jenkins",
+                "gitlab-ci",
+                "prometheus"
+            ]
+        );
+        assert!(
+            registry
+                .entries
+                .iter()
+                .all(|entry| { !matches!(entry.fact_id.as_str(), "ansible" | "argo-cd") })
+        );
     }
 
     #[test]

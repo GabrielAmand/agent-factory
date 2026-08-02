@@ -1,0 +1,82 @@
+{
+  "registry_version": "official-source-registry-v1",
+  "policy_id": "official-devops-tools-v2",
+  "topic": "devops-tools",
+  "approval_status": "approved",
+  "entries": [
+    {
+      "source_id": "docker-official",
+      "fact_id": "docker",
+      "display_name": "Docker",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        { "host": "www.docker.com", "allowed_path_prefixes": ["/", "/resources/what-container"] },
+        { "host": "docs.docker.com", "allowed_path_prefixes": ["/"] }
+      ],
+      "canonical_official_url": "https://www.docker.com/",
+      "canonical_source_url": "https://www.docker.com/resources/what-container/",
+      "redirect_policy": "same_approved_host_only"
+    },
+    {
+      "source_id": "kubernetes-official",
+      "fact_id": "kubernetes",
+      "display_name": "Kubernetes",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        { "host": "kubernetes.io", "allowed_path_prefixes": ["/", "/docs/home"] }
+      ],
+      "canonical_official_url": "https://kubernetes.io/",
+      "canonical_source_url": "https://kubernetes.io/",
+      "redirect_policy": "same_approved_host_only"
+    },
+    {
+      "source_id": "terraform-official",
+      "fact_id": "terraform",
+      "display_name": "Terraform",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        { "host": "developer.hashicorp.com", "allowed_path_prefixes": ["/terraform"] }
+      ],
+      "canonical_official_url": "https://developer.hashicorp.com/terraform",
+      "canonical_source_url": "https://developer.hashicorp.com/terraform/docs",
+      "redirect_policy": "same_approved_host_only"
+    },
+    {
+      "source_id": "jenkins-official",
+      "fact_id": "jenkins",
+      "display_name": "Jenkins",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        { "host": "www.jenkins.io", "allowed_path_prefixes": ["/", "/doc"] }
+      ],
+      "canonical_official_url": "https://www.jenkins.io/",
+      "canonical_source_url": "https://www.jenkins.io/doc/",
+      "redirect_policy": "same_approved_host_only"
+    },
+    {
+      "source_id": "gitlab-ci-official",
+      "fact_id": "gitlab-ci",
+      "display_name": "GitLab CI",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        { "host": "about.gitlab.com", "allowed_path_prefixes": ["/solutions/continuous-integration"] },
+        { "host": "docs.gitlab.com", "allowed_path_prefixes": ["/ci"] }
+      ],
+      "canonical_official_url": "https://about.gitlab.com/solutions/continuous-integration/",
+      "canonical_source_url": "https://docs.gitlab.com/ci/",
+      "redirect_policy": "same_approved_host_only"
+    },
+    {
+      "source_id": "prometheus-official",
+      "fact_id": "prometheus",
+      "display_name": "Prometheus",
+      "verification": "authoritative_verified",
+      "allowed_https_hosts": [
+        { "host": "prometheus.io", "allowed_path_prefixes": ["/", "/docs/introduction/overview"] }
+      ],
+      "canonical_official_url": "https://prometheus.io/",
+      "canonical_source_url": "https://prometheus.io/docs/introduction/overview/",
+      "redirect_policy": "same_approved_host_only"
+    }
+  ]
+}

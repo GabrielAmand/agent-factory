@@ -6,6 +6,10 @@ The orchestrator will be a Rust application. Ollama will expose local language m
 
 Agent communication crosses typed JSON boundaries. Model output is untrusted input: it must be parsed and validated before it can affect orchestration or execution.
 
+The architecture supports two related product paths. `agent-factory` is the reusable local orchestration engine. `devops_hub` is its first concrete product and uses the strict approved-source path for a personal DevOps portal. DevOps taxonomy, editorial structure, news policy, and presentation belong to `devops_hub`; generic role, retrieval, provenance, validation, workspace, Runner, and Reviewer boundaries belong to `agent-factory`.
+
+The existing eight-tool V1 registry and E0/E1 implementation remain shared-core assets: a secure reference implementation, deterministic fixture, and template for later approved registries. The six-source V2 policy is the initial live `devops_hub` catalog policy. Approved registries are not mandatory for every future research task.
+
 ## Target workflow
 
 ```text
@@ -136,7 +140,7 @@ Reports should eventually capture timestamps, duration, iterations, per-role con
 
 E0 defines contracts and validation only. It adds no HTTP, DNS, TLS, redirect, HTML-normalization, Explorer-call, Developer-V3, external-link, or workspace-publication path. The executable continues to load the V1 Lead and Developer contracts. All existing V1 prompts and schemas remain versioned and unchanged.
 
-Research mode is `off`, `auto`, or `required`, with configuration defaulting to `off`; a future run interface will choose the effective mode per run. Lead response V2 contains a strict tagged `research` union. A required request can name only the `devops-tools` topic, `official-devops-tools-v1` policy, exactly eight results, the five fixed fields, and one approved reason code. It has no URL, domain, path, method, header, command, script, or authentication field.
+Research mode is `off`, `auto`, or `required`, with configuration defaulting to `off`; a future run interface will choose the effective mode per run. Lead response V2 contains a strict tagged `research` union. A required request can name only the `devops-tools` topic, a supported approved-source policy, a bounded result count, the five fixed fields, and one approved reason code. It has no URL, domain, path, method, header, command, script, or authentication field. S2 compares the requested count with the selected validated registry rather than trusting a model-supplied fixed count.
 
 The activation decision matrix is:
 
@@ -146,11 +150,11 @@ The activation decision matrix is:
 | `auto` | continue without research | accept a semantically valid request |
 | `required` | fail `required_research_missing` | accept a semantically valid request |
 
-The repository-owned registry separates four properties: structural validity, policy completeness, pending authoritative verification, and retrieval readiness. Completeness requires the eight approved fact IDs and exact display names in registry order. Retrieval readiness additionally requires verified HTTPS policy fields for every entry and whole-registry human approval. Pending entries must contain no domain or URL, preventing speculative policy data from becoming executable later. Registry source and fact IDs use 1 to 64 lowercase ASCII ID characters, display names use 1 to 100 characters, domains use at most 253 bytes, each entry has at most eight conservative 512-byte path prefixes, and canonical URLs use at most 2,048 bytes.
+The repository-owned registry separates four properties: structural validity, policy completeness, pending authoritative verification, and retrieval readiness. Completeness requires the selected policy's approved fact IDs and exact display names in registry order. Retrieval readiness additionally requires verified HTTPS policy fields for every entry and whole-registry human approval. Pending entries must contain no domain or URL, preventing speculative policy data from becoming executable later. Registry source and fact IDs use 1 to 64 lowercase ASCII ID characters, display names use 1 to 100 characters, domains use at most 253 bytes, each entry has at most eight conservative 512-byte path prefixes, and canonical URLs use at most 2,048 bytes.
 
-Explorer request V1 is trusted Rust output and is limited to 160 KiB, one to eight documents, 16 KiB normalized UTF-8 text per document, 96 KiB combined text, eight requested facts, five fixed fields, 64-byte conservative source IDs, and 2,048-byte credential-free HTTPS canonical URLs without queries or fragments. Explorer response V1 is limited to 64 KiB and exactly eight facts. Each description contains 1 to 500 Unicode scalar values; each fact has 1 to 10 unique lowercase ASCII tags of at most 32 bytes and 1 to 8 unique known source IDs.
+Explorer request V1 is trusted Rust output and is limited to 160 KiB with exactly one document containing at most 16 KiB normalized UTF-8 text, fixed trusted metadata, 64-byte conservative IDs, and 2,048-byte credential-free HTTPS URLs without queries or fragments. Each request contains one registry-owned fact ID, display name, source ID, official URL, source URL, and normalized evidence text. Rust constructs these fields in registry order; retrieved text cannot override them. Explorer response V1 is limited to 64 KiB and is exactly one object containing only a description and tags. Descriptions contain 1 to 500 Unicode scalar values, and each result has 1 to 10 unique lowercase ASCII tags of at most 32 bytes.
 
-Rust builds `fact-bundle-v1` only after validating exact count, registry membership and order, exact IDs, names, official URLs and source URLs, provenance, uniqueness, plain-text descriptions, and conservative tags. Canonical digest input is compact UTF-8 JSON with fixed struct-field order, registry fact order, and lexically sorted tags and source IDs. Timestamps are excluded. E0 tests byte-for-byte determinism but intentionally does not compute SHA-256.
+Rust associates semantic outputs by deterministic position and builds `fact-bundle-v1` only after validating exact count, the complete registry-ordered retrieval set, plain-text descriptions, and conservative tags. Rust supplies every fact ID, name, official URL, source URL, and successfully retrieved source ID. Canonical digest input is compact UTF-8 JSON with fixed struct-field order, registry fact order, and lexically sorted tags and source IDs. Timestamps are excluded. E0 established byte-for-byte determinism; dormant E2 now computes SHA-256 over those bytes.
 
 Developer workspace V2 is dormant and contains exactly three untrusted files: `index.html`, `app.js`, and `styles.css`. It cannot contain `resources.json`. A later phase will have Rust serialize `resources.json` from the same validated fact bundle used to derive functional assertions, then combine the three untrusted files and one trusted data file before existing validation and atomic publication.
 
@@ -171,6 +175,31 @@ Normalized evidence is intended for future `ExplorerRequestV1`; the URL chain, s
 The manual E1 command emits one compact diagnostic object on success or failure. It contains only the requested and final attempted URLs, approved redirect chain, status, normalized Content-Type and charset, Content-Encoding, bounded transferred byte count, IP family, stable error code, and elapsed time. It never includes full headers, response bodies, full addresses, cookies, authorization, proxy state, certificate internals, or dependency errors.
 
 HTTP 429 maps to the stable `rate_limited` code without retrying or sleeping. The diagnostic includes `Retry-After` only when it is valid decimal seconds or an IMF-fixdate; malformed values are omitted.
+
+## Shared research-policy architecture
+
+Two conceptual policy families are planned:
+
+- `approved_sources`: Rust resolves registry-owned identifiers to exact approved URLs. This is the implemented E0/E1 foundation and the initial `devops_hub` path.
+- `open_discovery`: a future bounded discovery provider returns candidate URLs for general website requests. Candidates must still pass URL, DNS, SSRF, redirect, content, size, provenance, and model-output validation before use.
+
+Open discovery is not implemented and must not reuse a model-generated URL as direct retrieval authority. It requires new versioned query, candidate, ranking, generic collection, and provenance contracts. Applicable protections shared by both policies include strict time and byte limits, proxy suppression, private-address rejection, manual redirects, bounded HTML normalization, deterministic JSON, Rust-owned trusted metadata, and validated bundles shared by Developer, Runner, and Reviewer.
+
+## Explorer E2 / shared-core S2: dormant validated extraction
+
+S2 implements the shared `approved_sources` Explorer path: complete source retrieval, one independent bounded Explorer extraction per registry entry, strict semantic validation, and Rust-owned `FactBundleV1`. It remains disabled by default and available only through the explicit manual command; normal V1 generation does not activate it. H0 is its first intended consumer and uses the verified six-source `official-devops-tools-v2` policy. The eight-source V1 policy remains available as history and a security reference.
+
+The command retrieves every entry in the selected registry once in registry order. Any missing, empty, failed, or rate-limited source ends the pipeline before semantic extraction. There is no retry, partial bundle, cache, or fallback. Rust then makes at most one non-streaming local Ollama call per document in registry order. Each call uses the configured Explorer model, temperature zero, `keep_alive: 0`, no tools, and a 64 KiB response limit. The first failed call stops later calls, and earlier validated semantic results remain unpublished in memory.
+
+The S2 boundary strictly parses one description-and-tags JSON object per call. It rejects model-produced identifier or URL fields, associates each result with that call's registry entry and completed retrieval, deterministically normalizes tags, constructs `FactBundleV1`, and produces canonical bytes and a digest. Provenance proves which retrieved document was supplied for a fact, not perfect semantic entailment of every sentence. A future policy with multiple documents per fact will require a separate trusted evidence-group contract rather than model-selected source IDs. S2 does not activate Developer V2, `resources.json`, workspace publication, or preview; those remain S3 work. `open_discovery` has no contract or runtime dependency on S2.
+
+The implementation evolution and successful six-source H0 evidence are documented in [s2-approved-source-explorer.md](s2-approved-source-explorer.md).
+
+## Future immutable workspace revisions
+
+Workspace improvement will use immutable revisions rather than overwrite. A validated initial workspace becomes revision zero. Runner results and Reviewer observations may produce a structured change request, but the Reviewer has no file-write authority. The Developer receives only approved defects, relevant files, and the same validated data bundle, then proposes or applies targeted changes through trusted Rust validation.
+
+Publishing a revision creates a new run-scoped revision directory, preserves unchanged files, records requesting and applying roles, and never mutates an earlier valid revision. Every revision reruns static and functional validation and can be rolled back by selecting an earlier immutable revision. Facts, names, and URLs remain identical to the prior validated bundle unless a separately authorized research rerun creates a new bundle version. This Reviewer and revision architecture is future S5 work and is not active.
 
 ## Deferred decisions
 

@@ -6,7 +6,7 @@
   "required": ["registry_version", "policy_id", "topic", "approval_status", "entries"],
   "properties": {
     "registry_version": { "const": "official-source-registry-v1" },
-    "policy_id": { "const": "official-devops-tools-v1" },
+    "policy_id": { "enum": ["official-devops-tools-v1", "official-devops-tools-v2"] },
     "topic": { "const": "devops-tools" },
     "approval_status": { "enum": ["pending", "approved"] },
     "entries": {

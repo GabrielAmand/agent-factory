@@ -5,9 +5,9 @@
   "required": ["bundle_version", "source_policy", "facts"],
   "properties": {
     "bundle_version": { "const": "fact-bundle-v1" },
-    "source_policy": { "const": "official-devops-tools-v1" },
+    "source_policy": { "enum": ["official-devops-tools-v1", "official-devops-tools-v2"] },
     "facts": {
-      "type": "array", "minItems": 8, "maxItems": 8,
+      "type": "array", "minItems": 1, "maxItems": 8,
       "items": {
         "type": "object", "additionalProperties": false,
         "required": ["fact_id", "display_name", "description", "tags", "official_url", "source_url", "source_ids"],

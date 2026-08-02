@@ -2,6 +2,8 @@
 
 `agent-factory` is a local multi-agent software engineering laboratory. Its goal is to explore disciplined agent collaboration while keeping execution observable, deterministic, secure, and economical with model context.
 
+The repository is the generic orchestration engine. `devops_hub` is the planned first product built with it: a personal DevOps knowledge and news portal using approved official sources. A separate future open-discovery path may support general curated websites without requiring every domain to be statically registered; that path is not active.
+
 The orchestrator will be written in Rust, and Ollama will provide local models. Agents exchange validated, structured JSON objects rather than free-form protocol messages.
 
 ## Intended workflow
@@ -80,7 +82,7 @@ The synchronous preview server binds only to `127.0.0.1`, serves only the four g
 
 Phase E0 adds dormant, versioned contracts for a future official-source Explorer pipeline. It does not alter the current V1 Lead-to-Developer runtime, perform network access, or call an Explorer model. `default_research_mode = "off"` is parsed from configuration for future per-run selection; E0 does not activate research.
 
-The repository-owned `official-devops-tools-v1` registry lists the curated product set of Docker, Kubernetes, Terraform, Ansible, Jenkins, GitLab CI, Prometheus, and Argo CD. Its eight entries are approved and retrieval-ready policy. “Widely used” is a curated product decision in this initial policy, not a conclusion made by a model.
+The repository-owned `official-devops-tools-v1` registry preserves the previously approved eight-source security reference. The initial live H0 dataset uses `official-devops-tools-v2`: Docker, Kubernetes, Terraform, Jenkins, GitLab CI, and Prometheus. Ansible and Argo CD remain in V1 but are excluded from V2 because their official pages consistently returned HTTP 429 to the bounded Retriever. “Widely used” remains a curated product decision, not a model conclusion.
 
 Future phases will validate bounded official text, create one immutable fact bundle, give only that bundle to the Developer, and derive both trusted `resources.json` and functional assertions from it. The Explorer will extract from a Rust-supplied evidence set and will never define its own sources or oracle.
 
@@ -93,3 +95,17 @@ cargo run -- retrieve-official --policy official-devops-tools-v1 --fact-id docke
 ```
 
 Before an explicitly approved live smoke test, set `retriever.enabled = true`. The command prints compact retrieval metadata to standard error and normalized official text to standard output. It performs no Ollama call and publishes no workspace.
+
+## Dormant official-source Explorer
+
+Phase E2 adds a separate fail-closed command that requires both the Retriever and Explorer flags to be explicitly enabled:
+
+```text
+cargo run -- explore-official --policy official-devops-tools-v2
+```
+
+The command accepts only the policy ID. It retrieves every source in the selected validated registry once, then calls the configured local `gemma3:latest` Explorer at most once per document in deterministic registry order. Each strict response contains only one description and tag list. Rust associates it with that call's trusted registry entry, and only after every call succeeds does Rust construct `FactBundleV1`. The first failure stops later calls without retry or partial publication. The command writes no bundle, resources file, report, or workspace.
+
+`[explorer] enabled = false` is the default. Each Explorer request is capped at 160 KiB of JSON and contains at most 16 KiB of normalized evidence; each response is capped at 64 KiB. Retrieved text is untrusted evidence data, while fact IDs, display names, source IDs, and official/source URLs are populated from the approved registry. E2 does not change the normal V1 workflow or activate Developer workspace V2.
+
+The complete S2 evolution, trust boundary, failed batch designs, deterministic tag normalization, and successful H0 smoke evidence are recorded in [docs/s2-approved-source-explorer.md](docs/s2-approved-source-explorer.md).

@@ -5,10 +5,12 @@ use serde_json::Value;
 
 use crate::config::Config;
 use crate::error::{AppError, ErrorKind};
+use crate::explorer::{ExplorerConfig, MAX_EXPLORER_RESPONSE_BYTES};
 use crate::protocol::{DeveloperWorkspace, LeadResponse};
 
 const MAX_RESPONSE_BYTES: u64 = 1024 * 1024;
 const MAX_DEVELOPER_HTTP_REQUEST_BYTES: usize = 64 * 1024;
+const MAX_EXPLORER_HTTP_REQUEST_BYTES: usize = 192 * 1024;
 const CONNECT_TIMEOUT_SECONDS: u64 = 2;
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -29,6 +31,7 @@ pub struct RoleSuccess<T> {
 pub struct OllamaFailure {
     pub error: Box<AppError>,
     pub metrics: Option<OllamaMetrics>,
+    pub stable_code: Option<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -38,6 +41,14 @@ struct ChatRequest<'a> {
     stream: bool,
     format: &'a Value,
     keep_alive: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    options: Option<ChatOptions>,
+}
+
+#[derive(Serialize)]
+struct ChatOptions {
+    temperature: f32,
+    num_ctx: u32,
 }
 
 #[derive(Serialize)]
@@ -81,6 +92,7 @@ pub fn call_lead(
         OllamaFailure {
             error: Box::new(error),
             metrics: Some(metrics_from(&envelope)),
+            stable_code: None,
         }
     })?;
     Ok(RoleSuccess { output, metrics })
@@ -107,8 +119,44 @@ pub fn call_developer(
             .map_err(|error| OllamaFailure {
                 error: Box::new(error),
                 metrics: Some(metrics_from(&envelope)),
+                stable_code: None,
             })?;
     Ok(RoleSuccess { output, metrics })
+}
+
+pub fn call_explorer(
+    config: &Config,
+    explorer: &ExplorerConfig,
+    request_json: &str,
+    prompt: &str,
+    schema: &Value,
+) -> Result<RoleSuccess<String>, OllamaFailure> {
+    let request = build_explorer_request(
+        &explorer.model,
+        request_json,
+        prompt,
+        schema,
+        explorer.context_tokens,
+    );
+    let request_bytes = serialize_request(&request, Some(MAX_EXPLORER_HTTP_REQUEST_BYTES))?;
+    let envelope = send_serialized_chat(
+        config,
+        &request_bytes,
+        explorer.timeout_seconds,
+        MAX_EXPLORER_RESPONSE_BYTES as u64,
+        Some("explorer_timeout"),
+    )?;
+    if envelope.message.content.is_empty() {
+        return Err(failure(
+            ErrorKind::Response,
+            "Explorer returned empty output",
+        ));
+    }
+    let metrics = metrics_from(&envelope);
+    Ok(RoleSuccess {
+        output: envelope.message.content,
+        metrics,
+    })
 }
 
 fn send_chat(
@@ -122,9 +170,25 @@ fn send_chat(
     let request = build_request(model, user_content, prompt, schema);
     let request_bytes = serialize_request(&request, maximum_request_bytes)?;
 
+    send_serialized_chat(
+        config,
+        &request_bytes,
+        config.response_timeout_seconds,
+        MAX_RESPONSE_BYTES,
+        None,
+    )
+}
+
+fn send_serialized_chat(
+    config: &Config,
+    request_bytes: &[u8],
+    timeout_seconds: u64,
+    maximum_response_bytes: u64,
+    timeout_code: Option<&'static str>,
+) -> Result<ChatResponse, OllamaFailure> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_connect(Some(Duration::from_secs(CONNECT_TIMEOUT_SECONDS)))
-        .timeout_global(Some(Duration::from_secs(config.response_timeout_seconds)))
+        .timeout_global(Some(Duration::from_secs(timeout_seconds)))
         .max_redirects(0)
         .proxy(None)
         .build()
@@ -132,12 +196,16 @@ fn send_chat(
     let mut response = agent
         .post(config.chat_url.as_str())
         .header("content-type", "application/json")
-        .send(&request_bytes)
+        .send(request_bytes)
         .map_err(|error| {
-            failure(
-                ErrorKind::Network,
-                format!("Ollama request failed: {error}"),
-            )
+            if matches!(error, ureq::Error::Timeout(_)) {
+                timeout_failure(timeout_code)
+            } else {
+                failure(
+                    ErrorKind::Network,
+                    format!("Ollama request failed: {error}"),
+                )
+            }
         })?;
 
     if response.status().is_redirection() {
@@ -149,7 +217,7 @@ fn send_chat(
     let body = response
         .body_mut()
         .with_config()
-        .limit(MAX_RESPONSE_BYTES)
+        .limit(maximum_response_bytes)
         .read_to_vec()
         .map_err(|error| {
             failure(
@@ -165,6 +233,13 @@ fn send_chat(
     })
 }
 
+fn timeout_failure(code: Option<&'static str>) -> OllamaFailure {
+    match code {
+        Some(code) => coded_failure(ErrorKind::Network, code, "Ollama request timed out"),
+        None => failure(ErrorKind::Network, "Ollama request timed out"),
+    }
+}
+
 fn serialize_request(
     request: &ChatRequest<'_>,
     maximum_bytes: Option<usize>,
@@ -176,10 +251,12 @@ fn serialize_request(
         )
     })?;
     if maximum_bytes.is_some_and(|maximum| bytes.len() > maximum) {
-        return Err(failure(
-            ErrorKind::Delegation,
-            "Developer HTTP request body must not exceed 65536 bytes",
-        ));
+        let message = if maximum_bytes == Some(MAX_DEVELOPER_HTTP_REQUEST_BYTES) {
+            "Developer HTTP request body must not exceed 65536 bytes"
+        } else {
+            "Explorer HTTP request body must not exceed 196608 bytes"
+        };
+        return Err(failure(ErrorKind::Delegation, message));
     }
     Ok(bytes)
 }
@@ -188,6 +265,15 @@ fn failure(kind: ErrorKind, message: impl Into<String>) -> OllamaFailure {
     OllamaFailure {
         error: Box::new(AppError::new(kind, message)),
         metrics: None,
+        stable_code: None,
+    }
+}
+
+fn coded_failure(kind: ErrorKind, code: &'static str, message: impl Into<String>) -> OllamaFailure {
+    OllamaFailure {
+        error: Box::new(AppError::coded(kind, code, message)),
+        metrics: None,
+        stable_code: Some(code),
     }
 }
 
@@ -212,7 +298,23 @@ fn build_request<'a>(
         stream: false,
         format: schema,
         keep_alive: 0,
+        options: None,
     }
+}
+
+fn build_explorer_request<'a>(
+    model: &'a str,
+    user_content: &'a str,
+    prompt: &'a str,
+    schema: &'a Value,
+    context_tokens: u32,
+) -> ChatRequest<'a> {
+    let mut request = build_request(model, user_content, prompt, schema);
+    request.options = Some(ChatOptions {
+        temperature: 0.0,
+        num_ctx: context_tokens,
+    });
+    request
 }
 
 fn metrics_from(response: &ChatResponse) -> OllamaMetrics {
@@ -241,6 +343,34 @@ mod tests {
             assert_eq!(value["messages"].as_array().unwrap().len(), 2);
             assert!(value.get("tools").is_none());
         }
+    }
+
+    #[test]
+    fn explorer_request_is_deterministic_unloaded_and_tool_free() {
+        let schema = serde_json::json!({"type": "object"});
+        let value = serde_json::to_value(build_explorer_request(
+            "explorer",
+            "trusted-json",
+            "fixed-prompt",
+            &schema,
+            32_768,
+        ))
+        .unwrap();
+        assert_eq!(value["model"], "explorer");
+        assert_eq!(value["stream"], false);
+        assert_eq!(value["keep_alive"], 0);
+        assert_eq!(value["options"]["temperature"], 0.0);
+        assert_eq!(value["options"]["num_ctx"], 32_768);
+        assert!(value.get("tools").is_none());
+    }
+
+    #[test]
+    fn explorer_timeout_code_does_not_leak_into_existing_roles() {
+        assert_eq!(timeout_failure(None).stable_code, None);
+        assert_eq!(
+            timeout_failure(Some("explorer_timeout")).stable_code,
+            Some("explorer_timeout")
+        );
     }
 
     #[test]

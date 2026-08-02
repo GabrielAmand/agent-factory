@@ -51,7 +51,7 @@ The file-application, command-policy, and approval models require human validati
 ## Explorer E0: official-source contracts without execution
 
 - Preserve the active V1 runtime while adding Lead V2, Explorer V1, fact-bundle V1, and Developer workspace V2 contracts.
-- Maintain the repository-owned `official-devops-tools-v1` registry, which is approved and retrieval-ready with all eight entries authoritatively verified. Ansible uses its official community documentation source; Argo CD documentation is project-owned content hosted on Read the Docs.
+- Preserve the repository-owned `official-devops-tools-v1` registry as the approved, retrieval-ready eight-source history and security reference. Add `official-devops-tools-v2` as the six-source initial H0 live policy; Ansible and Argo CD remain verified in V1 but are excluded from V2 because their official sources consistently returned HTTP 429.
 - Validate the research activation matrix, registry readiness states, Explorer boundaries, provenance, fact invariants, and canonical serialization with deterministic fixtures.
 - Prepare privacy-minimized execution-report-v5 types without activating them.
 - Add no network access, source retrieval, Explorer model call, or Developer behavior change.
@@ -66,6 +66,51 @@ At E0 completion, registry readiness was policy readiness only and no HTTP Retri
 - Keep normal Lead/Developer behavior unchanged and defer Explorer invocation, fact-bundle construction, and workspace integration to E2 or later.
 
 E1 is complete when offline deterministic tests cover policy, SSRF, redirects, content and size limits, normalization, and hostile proxy environments. Live checks against official sources remain separately approved smoke tests and may fail closed when external policy assumptions change.
+
+## Revised product roadmap
+
+The roadmap now separates shared orchestration capabilities from the two products that consume them. Completed E0/E1 work is retained and renamed within the shared sequence; this framing does not reopen or invalidate its contracts or security decisions.
+
+### Shared core
+
+- **S0 — contracts and approved-source policy (complete):** existing E0 research contracts, deterministic fixtures, registry validation, historical eight-source V1, and live six-source V2.
+- **S1 — bounded official Retriever (complete):** existing E1 HTTPS retrieval, DNS pinning, SSRF protection, proxy suppression, manual redirects, bounded normalization, and dormant identifier-only command.
+- **S2 — approved-source Explorer and fact bundle (complete, live-smoke-tested, dormant):** complete retrieval set, one bounded single-document Explorer call per registry entry, strict semantic validation, deterministic Rust tag normalization, Rust-owned call-order provenance and immutable bundle metadata, canonical serialization, and digest. It remains disabled by default and separate from normal V1 generation.
+- **S3 — trusted bundle consumption:** Rust serializes data resources from the validated bundle; Developer receives the same immutable facts and cannot replace IDs, names, or URLs.
+- **S4 — functional Runner:** derive deterministic assertions from the validated bundle, exercise the published artifact, and record bounded outcomes without replacing artifact validation.
+- **S5 — Reviewer and immutable revisions:** Reviewer produces structured observations; Developer applies approved targeted edits into new workspace revisions; rerun validation and support rollback.
+
+### `devops_hub`
+
+- **H0 — initial approved DevOps catalog data path (validated):** the six-tool V2 source-to-FactBundle path has passed its live smoke test; S3 still must connect that trusted bundle to generation before the catalog website is produced.
+- **H1 — portal sections:** add DevOps-specific tools, cloud, DevSecOps, AI-agent, documentation, comparison, and learning sections without coupling these taxonomies to the engine.
+- **H2 — expanded approved registries:** add separately reviewed Cloud, DevSecOps, observability, delivery, and AI-agent sources.
+- **H3 — releases and news:** design distinct changelog, release, engineering-blog, security-advisory, GitHub-release, and selected-social source policies with publication/retrieval dates, freshness, and deduplication.
+- **H4 — controlled refresh and publication:** add manual or scheduled refresh, archive policy, human publication approval, and storage only after separate architecture and security review.
+
+Stable catalog data and time-sensitive news remain separate throughout H0–H4.
+
+### Open research and site generation
+
+- **O0 — generic collection contracts:** define validated research-query, candidate, generic item, URL, source, and provenance contracts.
+- **O1 — bounded discovery provider:** select a provider and enforce query, result, network, privacy, and cost boundaries without granting models direct network access.
+- **O2 — candidate ranking and retrieval:** deterministically validate and rank candidates, then reuse shared secure retrieval controls.
+- **O3 — generic Explorer bundle:** extract and validate a general collection without requiring a static domain registry.
+- **O4 — Developer and Runner integration:** give the same validated collection to generation and deterministic evaluation.
+- **O5 — safety and quality evaluation:** measure factual coverage, provenance, locality, freshness, invented URLs, unsafe destinations, and output usefulness.
+
+No O-phase contract or runtime is active.
+
+## Completed dormant Explorer E2 details
+
+- Require one complete selected-policy E1 retrieval set before any Explorer call.
+- Invoke the configured local Explorer once per registry entry with bounded single-document JSON evidence and `keep_alive: 0`.
+- Strictly validate and normalize semantic fields before Rust constructs `fact-bundle-v1` with trusted metadata and provenance.
+- Canonically serialize the validated bundle and compute its deterministic SHA-256 digest.
+- Keep E2 disabled by default and available only through an explicit manual command.
+- Preserve the normal V1 workflow; do not activate Developer workspace V2, Rust-owned `resources.json`, functional assertions, or workspace publication.
+
+Shared-core S3 remains responsible for giving only the validated fact bundle to Developer V2 and producing `resources.json` from trusted Rust data.
 
 ## Future product direction: DevOps knowledge portal
 
@@ -104,7 +149,7 @@ Two Explorer modes may eventually support that portal:
 
 Future product design must consider approved news-source registries, manual or scheduled refreshes, explicit freshness windows, duplicate detection, archived entries, version and release tracking, security-advisory prioritization, end-to-end source provenance, and human approval before publication. Stable catalog data and time-sensitive news data require separate contracts, storage lifecycles, freshness semantics, and presentation rules.
 
-This direction does not broaden E0 or E1. The current priority remains completing one end-to-end official-source Explorer vertical slice using the stable catalog path. No scheduler, news retriever, database, frontend redesign, or additional agent should be implemented now.
+This direction does not broaden S0/E0, S1/E1, or the completed dormant S2 path. The current priority is S3: connect the validated H0 FactBundle to trusted Rust-owned data serialization and bounded Developer generation. No scheduler, news retriever, database, frontend redesign, open-discovery provider, revision system, or additional agent should be implemented now.
 
 ## Phase 5: Workspace isolation
 

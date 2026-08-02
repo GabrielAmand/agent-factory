@@ -4,8 +4,7 @@ use crate::error::{AppError, ErrorKind};
 
 pub const LEAD_V2_VERSION: &str = "lead-response-v2";
 pub const DEVOPS_TOPIC: &str = "devops-tools";
-pub const DEVOPS_POLICY: &str = "official-devops-tools-v1";
-pub const DEVOPS_REQUESTED_COUNT: usize = 8;
+pub const MAX_APPROVED_POLICY_FACTS: usize = 8;
 pub const REQUIRED_FACT_FIELDS: [&str; 5] = [
     "display_name",
     "description",
@@ -121,15 +120,18 @@ pub fn evaluate_activation(
     }
 }
 
-fn validate_research_request(request: &ResearchRequest) -> Result<(), AppError> {
+pub(crate) fn validate_research_request(request: &ResearchRequest) -> Result<(), AppError> {
     if request.topic != DEVOPS_TOPIC {
         return validation("unsupported research topic");
     }
-    if request.source_policy != DEVOPS_POLICY {
+    if !matches!(
+        request.source_policy.as_str(),
+        "official-devops-tools-v1" | "official-devops-tools-v2"
+    ) {
         return validation("unsupported research source_policy");
     }
-    if request.requested_count != DEVOPS_REQUESTED_COUNT {
-        return validation("official-devops-tools-v1 requires exactly 8 items");
+    if !(1..=MAX_APPROVED_POLICY_FACTS).contains(&request.requested_count) {
+        return validation("requested_count exceeds approved policy bounds");
     }
     if request.required_fields.as_slice() != REQUIRED_FACT_FIELDS {
         return validation("required_fields must exactly match the supported fact fields");

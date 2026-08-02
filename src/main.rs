@@ -1,9 +1,8 @@
 mod config;
 mod document_normalizer;
+mod e2;
 mod error;
-#[allow(dead_code)] // Phase E0 contracts are validated by tests but not activated at runtime.
 mod explorer;
-#[allow(dead_code)] // Phase E0 contracts are validated by tests but not activated at runtime.
 mod fact_bundle;
 mod network_policy;
 mod ollama;
@@ -34,6 +33,8 @@ const LEAD_PROMPT: &str = include_str!("../prompts/lead-v1.txt");
 const LEAD_SCHEMA: &str = include_str!("../schemas/lead-response-v1.json");
 const DEVELOPER_PROMPT: &str = include_str!("../prompts/developer-workspace-v1.txt");
 const DEVELOPER_SCHEMA: &str = include_str!("../schemas/developer-workspace-v1.json");
+const EXPLORER_PROMPT: &str = include_str!("../prompts/explorer-v1.txt");
+const EXPLORER_SCHEMA: &str = include_str!("../schemas/explorer-response-v1.json");
 
 fn main() -> ExitCode {
     match run() {
@@ -51,9 +52,109 @@ fn run() -> Result<(), AppError> {
         run_generation()
     } else if arguments[0] == "retrieve-official" {
         run_retrieve_official(&arguments)
+    } else if arguments[0] == "explore-official" {
+        run_explore_official(&arguments)
     } else {
         run_preview(&arguments)
     }
+}
+
+fn run_explore_official(arguments: &[String]) -> Result<(), AppError> {
+    if arguments.len() != 3 || arguments[1] != "--policy" {
+        return Err(AppError::new(
+            ErrorKind::Configuration,
+            "usage: agent-factory explore-official --policy <id>",
+        ));
+    }
+    let config = Config::load(Path::new(CONFIG_ROOT))?;
+    let registry = load_official_registry(&arguments[2])?;
+    let schema = parse_embedded_schema("Explorer", EXPLORER_SCHEMA)?;
+    let research = research::ResearchRequest {
+        reason_code: research::ResearchReasonCode::OfficialExternalFacts,
+        topic: research::DEVOPS_TOPIC.to_owned(),
+        requested_count: registry.entries.len(),
+        required_fields: research::REQUIRED_FACT_FIELDS
+            .iter()
+            .map(|v| (*v).to_owned())
+            .collect(),
+        source_policy: arguments[2].clone(),
+    };
+    let outcome = e2::run_with(
+        &registry,
+        &research,
+        &config.retriever,
+        &config.explorer,
+        |request, retriever_config| retriever::retrieve(&registry, request, retriever_config),
+        |request_json| {
+            ollama::call_explorer(
+                &config,
+                &config.explorer,
+                request_json,
+                EXPLORER_PROMPT,
+                &schema,
+            )
+            .map(|success| e2::ExplorerTransportOutput {
+                json: success.output,
+                metrics: success.metrics,
+            })
+            .map_err(|failure| failure.stable_code.unwrap_or("explorer_call_failed"))
+        },
+    );
+    match outcome {
+        Ok(result) => {
+            let metadata = serde_json::json!({
+                "policy_id": result.policy_id,
+                "registry_version": result.registry_version,
+                "expected_fact_count": result.expected_fact_count,
+                "retrieved_source_count": result.retrieved_source_count,
+                "retrievals": result.retrievals,
+                "explorer_model": result.explorer_model,
+                "expected_explorer_call_count": result.expected_explorer_call_count,
+                "completed_explorer_call_count": result.completed_explorer_call_count,
+                "explorer_calls": result.explorer_calls,
+                "validated_fact_count": result.validated_fact_count,
+                "fact_bundle_version": result.bundle.bundle_version,
+                "digest_algorithm": result.digest.algorithm,
+                "bundle_digest": result.digest.hex,
+                "canonical_byte_count": result.digest.canonical_byte_count,
+                "retrieval_duration_ms": result.retrieval_duration_ms,
+                "explorer_duration_ms": result.explorer_duration_ms,
+                "total_duration_ms": result.total_duration_ms,
+            });
+            println!("{metadata}");
+            Ok(())
+        }
+        Err(failure) => {
+            let diagnostic = serde_json::to_string(&failure).map_err(|_| {
+                AppError::new(ErrorKind::Validation, "could not serialize E2 diagnostics")
+            })?;
+            eprintln!("agent-factory: exploration diagnostic {diagnostic}");
+            Err(failure.as_app_error())
+        }
+    }
+}
+
+fn load_official_registry(
+    policy_id: &str,
+) -> Result<source_registry::OfficialSourceRegistry, AppError> {
+    let path = match policy_id {
+        "official-devops-tools-v1" => "official-sources/official-devops-tools-v1.json",
+        "official-devops-tools-v2" => "official-sources/official-devops-tools-v2.json",
+        _ => {
+            return Err(AppError::coded(
+                ErrorKind::Validation,
+                "unknown_policy",
+                "official source policy is not supported",
+            ));
+        }
+    };
+    let registry_json = std::fs::read_to_string(path).map_err(|_| {
+        AppError::new(
+            ErrorKind::Configuration,
+            "official source registry is unavailable",
+        )
+    })?;
+    source_registry::OfficialSourceRegistry::parse_and_validate(&registry_json)
 }
 
 fn run_retrieve_official(arguments: &[String]) -> Result<(), AppError> {
@@ -68,14 +169,7 @@ fn run_retrieve_official(arguments: &[String]) -> Result<(), AppError> {
         ));
     }
     let config = Config::load(Path::new(CONFIG_ROOT))?;
-    let registry_json = std::fs::read_to_string("official-sources/official-devops-tools-v1.json")
-        .map_err(|_| {
-        AppError::new(
-            ErrorKind::Configuration,
-            "official source registry is unavailable",
-        )
-    })?;
-    let registry = source_registry::OfficialSourceRegistry::parse_and_validate(&registry_json)?;
+    let registry = load_official_registry(&arguments[2])?;
     let result = match retriever::retrieve(
         &registry,
         retriever::RetrievalRequest {

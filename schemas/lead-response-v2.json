@@ -31,9 +31,9 @@
             "status": { "const": "required" },
             "reason_code": { "enum": ["official_external_facts", "current_official_information", "official_documentation_links", "user_explicitly_requested_sources"] },
             "topic": { "const": "devops-tools" },
-            "requested_count": { "const": 8 },
+            "requested_count": { "type": "integer", "minimum": 1, "maximum": 8 },
             "required_fields": { "type": "array", "minItems": 5, "maxItems": 5, "items": { "enum": ["display_name", "description", "tags", "official_url", "source_url"] } },
-            "source_policy": { "const": "official-devops-tools-v1" }
+            "source_policy": { "enum": ["official-devops-tools-v1", "official-devops-tools-v2"] }
           }
         }
       ]

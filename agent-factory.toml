@@ -18,3 +18,9 @@ maximum_decompressed_bytes = 524288
 maximum_normalized_bytes = 16384
 maximum_response_header_bytes = 32768
 user_agent = "agent-factory/0.1 official-source-retriever"
+
+[explorer]
+enabled = false
+model = "gemma3:latest"
+timeout_seconds = 300
+context_tokens = 32768

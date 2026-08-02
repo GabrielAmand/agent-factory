@@ -5,6 +5,7 @@ use serde::Deserialize;
 use url::{Host, Url};
 
 use crate::error::{AppError, ErrorKind};
+use crate::explorer::ExplorerConfig;
 use crate::research::ResearchMode;
 use crate::retriever::RetrieverConfig;
 
@@ -26,6 +27,8 @@ struct FileConfig {
     default_research_mode: ResearchMode,
     #[serde(default)]
     retriever: RetrieverConfig,
+    #[serde(default)]
+    explorer: ExplorerConfig,
 }
 
 #[derive(Debug)]
@@ -40,6 +43,8 @@ pub struct Config {
     pub default_research_mode: ResearchMode,
     // Used only by the explicit dormant E1 retrieval command.
     pub retriever: RetrieverConfig,
+    // Used only by the explicit dormant E2 exploration command.
+    pub explorer: ExplorerConfig,
 }
 
 impl Config {
@@ -92,6 +97,7 @@ impl Config {
         file.retriever
             .validate()
             .map_err(|error| AppError::new(ErrorKind::Configuration, error.to_string()))?;
+        file.explorer.validate()?;
         let report_directory = validate_report_directory(repository_root, &file.report_directory)?;
         let workspace_directory =
             validate_workspace_directory(repository_root, &file.workspace_directory)?;
@@ -105,6 +111,7 @@ impl Config {
             workspace_directory,
             default_research_mode: file.default_research_mode,
             retriever: file.retriever,
+            explorer: file.explorer,
         })
     }
 }
@@ -285,6 +292,7 @@ mod tests {
             workspace_directory: "workspaces".to_owned(),
             default_research_mode: ResearchMode::Off,
             retriever: RetrieverConfig::default(),
+            explorer: ExplorerConfig::default(),
         }
     }
 
@@ -321,6 +329,7 @@ workspace_directory = "workspaces"
         )
         .unwrap();
         assert_eq!(file.default_research_mode, ResearchMode::Off);
+        assert!(!file.explorer.enabled);
     }
 
     #[test]
