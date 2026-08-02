@@ -6,6 +6,7 @@ use url::{Host, Url};
 
 use crate::error::{AppError, ErrorKind};
 use crate::research::ResearchMode;
+use crate::retriever::RetrieverConfig;
 
 const MAX_MODEL_CHARS: usize = 200;
 const MAX_ENDPOINT_CHARS: usize = 2_048;
@@ -23,6 +24,8 @@ struct FileConfig {
     workspace_directory: String,
     #[serde(default)]
     default_research_mode: ResearchMode,
+    #[serde(default)]
+    retriever: RetrieverConfig,
 }
 
 #[derive(Debug)]
@@ -35,6 +38,8 @@ pub struct Config {
     pub workspace_directory: PathBuf,
     #[allow(dead_code)] // Parsed now; per-run activation is intentionally deferred beyond E0.
     pub default_research_mode: ResearchMode,
+    // Used only by the explicit dormant E1 retrieval command.
+    pub retriever: RetrieverConfig,
 }
 
 impl Config {
@@ -84,6 +89,9 @@ impl Config {
         }
 
         let chat_url = validate_endpoint(&file.ollama_endpoint)?;
+        file.retriever
+            .validate()
+            .map_err(|error| AppError::new(ErrorKind::Configuration, error.to_string()))?;
         let report_directory = validate_report_directory(repository_root, &file.report_directory)?;
         let workspace_directory =
             validate_workspace_directory(repository_root, &file.workspace_directory)?;
@@ -96,6 +104,7 @@ impl Config {
             report_directory,
             workspace_directory,
             default_research_mode: file.default_research_mode,
+            retriever: file.retriever,
         })
     }
 }
@@ -275,6 +284,7 @@ mod tests {
             report_directory: "reports".to_owned(),
             workspace_directory: "workspaces".to_owned(),
             default_research_mode: ResearchMode::Off,
+            retriever: RetrieverConfig::default(),
         }
     }
 

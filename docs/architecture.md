@@ -156,6 +156,22 @@ Developer workspace V2 is dormant and contains exactly three untrusted files: `i
 
 Execution-report-v5 preparation types contain compact research mode/status, policy, source counts and IDs, retrieval/Explorer/provenance status, metrics, fact count, and future document/bundle digest fields. E0 does not activate V5. These structures deliberately have no names, URLs, descriptions, page text, full request/response, headers, DNS data, or reasoning fields.
 
+## Explorer E1: dormant bounded Retriever
+
+E1 resolves a retrieval request containing only policy, fact, and source IDs against the validated repository registry. The registry supplies the canonical source URL and exact host, path-prefix, and redirect policy. Normal generation does not invoke this path; the explicit `retrieve-official` subcommand is disabled by configuration by default and makes no model call.
+
+Each hop is parsed as a strict HTTPS URL, resolved once through the operating-system resolver with a two-second default bound, and rejected if any returned address is non-public. A custom `ureq` resolver returns only one deterministically selected validated socket address to the connector. The original hostname remains in the URI for TLS SNI and WebPKI certificate verification. A new resolver and client are constructed for every permitted redirect. Because standard blocking name resolution cannot be cancelled, the OS resolver helper thread can outlive an application timeout; its late result is never used for a connection.
+
+The client disables ambient proxies and automatic redirects, sends GET with Rust-owned `User-Agent`, `Accept`, and `Accept-Encoding: identity` headers, and accepts only status 200 `text/html` or `text/plain` UTF-8. Defaults are 2-second DNS, 3-second connect, 15-second request, 60-second total, two redirects, 32 KiB response headers, 512 KiB transferred and decompressed bodies, and 16 KiB normalized text. Hard ceilings are 10, 10, 30, and 120 seconds, four redirects, 64 KiB headers, 1 MiB bodies, and 16 KiB normalized text.
+
+HTML normalization uses a structural HTML5 parser, skips script, style, noscript, SVG, canvas, template, metadata, and comments, preserves deterministic block separation, decodes entities, collapses whitespace, and emits plain UTF-8. It performs no JavaScript, subresource loading, article ranking, summarization, or general boilerplate removal. Identical input bytes produce identical normalized text.
+
+Normalized evidence is intended for future `ExplorerRequestV1`; the URL chain, status, byte counts, timestamp, and selected address family are audit metadata. IP addresses, headers, raw HTML, cookies, credentials, and proxy data are not report fields. E2 remains responsible for invoking and validating the Explorer.
+
+The manual E1 command emits one compact diagnostic object on success or failure. It contains only the requested and final attempted URLs, approved redirect chain, status, normalized Content-Type and charset, Content-Encoding, bounded transferred byte count, IP family, stable error code, and elapsed time. It never includes full headers, response bodies, full addresses, cookies, authorization, proxy state, certificate internals, or dependency errors.
+
+HTTP 429 maps to the stable `rate_limited` code without retrying or sleeping. The diagnostic includes `Retry-After` only when it is valid decimal seconds or an IMF-fixdate; malformed values are omitted.
+
 ## Deferred decisions
 
 The internal Rust module layout, concrete Lead prompt, report-directory default, later command policy representation, isolation mechanism, and cross-phase metric definitions remain deferred. Any choice that changes an approved architecture or security boundary requires human validation before implementation.

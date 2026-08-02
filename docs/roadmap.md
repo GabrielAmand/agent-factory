@@ -56,7 +56,16 @@ The file-application, command-policy, and approval models require human validati
 - Prepare privacy-minimized execution-report-v5 types without activating them.
 - Add no network access, source retrieval, Explorer model call, or Developer behavior change.
 
-Registry readiness is policy readiness only: no HTTP retriever is active. E1 requires separate approval for the HTTP/TLS dependency set, DNS and proxy boundary, retrieval limits, and live-network smoke-test procedure. If an official source later moves or violates its registered exact-host, path-prefix, or redirect policy, E1 must fail closed rather than broaden policy automatically.
+At E0 completion, registry readiness was policy readiness only and no HTTP Retriever was present. E1 adds only an explicit, disabled-by-default manual retrieval path; no normal generation or model workflow invokes it. If an official source moves or violates its registered exact-host, path-prefix, or redirect policy, E1 fails closed rather than broadening policy automatically.
+
+## Explorer E1: bounded retrieval without activation
+
+- Add an explicit, configuration-disabled HTTPS Retriever driven only by approved registry identifiers.
+- Pin validated public DNS answers, suppress proxies, handle redirects manually, and enforce exact registry host/path policy.
+- Accept bounded UTF-8 HTML and plain text and normalize it deterministically without JavaScript or subresource loading.
+- Keep normal Lead/Developer behavior unchanged and defer Explorer invocation, fact-bundle construction, and workspace integration to E2 or later.
+
+E1 is complete when offline deterministic tests cover policy, SSRF, redirects, content and size limits, normalization, and hostile proxy environments. Live checks against official sources remain separately approved smoke tests and may fail closed when external policy assumptions change.
 
 ## Future product direction: DevOps knowledge portal
 

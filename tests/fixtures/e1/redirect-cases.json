@@ -1,0 +1,5 @@
+{
+  "relative_allowed": "/terraform/language",
+  "downgrade_forbidden": "http://developer.hashicorp.com/terraform",
+  "host_forbidden": "https://example.invalid/terraform"
+}

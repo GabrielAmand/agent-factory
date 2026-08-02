@@ -1,16 +1,18 @@
 mod config;
+mod document_normalizer;
 mod error;
 #[allow(dead_code)] // Phase E0 contracts are validated by tests but not activated at runtime.
 mod explorer;
 #[allow(dead_code)] // Phase E0 contracts are validated by tests but not activated at runtime.
 mod fact_bundle;
+mod network_policy;
 mod ollama;
 mod preview;
 mod protocol;
 mod report;
 #[allow(dead_code)] // Phase E0 research contracts are not activated by the V1 runtime.
 mod research;
-#[allow(dead_code)] // Phase E0 registry policy is not consumed by the V1 runtime.
+mod retriever;
 mod source_registry;
 mod workspace;
 
@@ -47,9 +49,75 @@ fn run() -> Result<(), AppError> {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     if arguments.is_empty() {
         run_generation()
+    } else if arguments[0] == "retrieve-official" {
+        run_retrieve_official(&arguments)
     } else {
         run_preview(&arguments)
     }
+}
+
+fn run_retrieve_official(arguments: &[String]) -> Result<(), AppError> {
+    if arguments.len() != 7
+        || arguments[1] != "--policy"
+        || arguments[3] != "--fact-id"
+        || arguments[5] != "--source-id"
+    {
+        return Err(AppError::new(
+            ErrorKind::Configuration,
+            "usage: agent-factory retrieve-official --policy <id> --fact-id <id> --source-id <id>",
+        ));
+    }
+    let config = Config::load(Path::new(CONFIG_ROOT))?;
+    let registry_json = std::fs::read_to_string("official-sources/official-devops-tools-v1.json")
+        .map_err(|_| {
+        AppError::new(
+            ErrorKind::Configuration,
+            "official source registry is unavailable",
+        )
+    })?;
+    let registry = source_registry::OfficialSourceRegistry::parse_and_validate(&registry_json)?;
+    let result = match retriever::retrieve(
+        &registry,
+        retriever::RetrievalRequest {
+            policy_id: &arguments[2],
+            fact_id: &arguments[4],
+            source_id: &arguments[6],
+        },
+        &config.retriever,
+    ) {
+        Ok(result) => result,
+        Err(error) => {
+            let metadata = serde_json::to_string(error.diagnostic()).map_err(|_| {
+                AppError::new(
+                    ErrorKind::Validation,
+                    "could not serialize sanitized retrieval diagnostics",
+                )
+            })?;
+            eprintln!("agent-factory: retrieval diagnostic {metadata}");
+            return Err(AppError::coded(
+                ErrorKind::Validation,
+                error.code(),
+                error.to_string(),
+            ));
+        }
+    };
+    let metadata = serde_json::json!({
+        "requested_url": result.requested_canonical_url,
+        "final_attempted_url": result.final_url,
+        "redirect_chain": result.redirect_chain,
+        "http_status": result.http_status,
+        "content_type": result.content_type,
+        "charset": result.charset,
+        "content_encoding": result.content_encoding,
+        "transferred_bytes": result.original_byte_count,
+        "decoded_bytes": result.decoded_byte_count,
+        "normalized_bytes": result.normalized_byte_count,
+        "selected_ip_family": result.selected_address_family,
+        "elapsed_ms": result.elapsed_ms,
+    });
+    eprintln!("agent-factory: retrieval diagnostic {metadata}");
+    println!("{}", result.normalized_text);
+    Ok(())
 }
 
 fn run_preview(arguments: &[String]) -> Result<(), AppError> {

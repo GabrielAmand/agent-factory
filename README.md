@@ -80,6 +80,16 @@ The synchronous preview server binds only to `127.0.0.1`, serves only the four g
 
 Phase E0 adds dormant, versioned contracts for a future official-source Explorer pipeline. It does not alter the current V1 Lead-to-Developer runtime, perform network access, or call an Explorer model. `default_research_mode = "off"` is parsed from configuration for future per-run selection; E0 does not activate research.
 
-The repository-owned `official-devops-tools-v1` registry lists the curated product set of Docker, Kubernetes, Terraform, Ansible, Jenkins, GitLab CI, Prometheus, and Argo CD. Their network policy fields remain empty and marked `pending_authoritative_verification`; therefore the registry is not retrieval-ready. “Widely used” is a curated product decision in this initial policy, not a conclusion made by a model.
+The repository-owned `official-devops-tools-v1` registry lists the curated product set of Docker, Kubernetes, Terraform, Ansible, Jenkins, GitLab CI, Prometheus, and Argo CD. Its eight entries are approved and retrieval-ready policy. “Widely used” is a curated product decision in this initial policy, not a conclusion made by a model.
 
 Future phases will validate bounded official text, create one immutable fact bundle, give only that bundle to the Developer, and derive both trusted `resources.json` and functional assertions from it. The Explorer will extract from a Rust-supplied evidence set and will never define its own sources or oracle.
+
+## Dormant official-source Retriever
+
+Phase E1 adds a bounded HTTPS Retriever but does not connect it to normal generation, research activation, Explorer, fact-bundle, Developer, or workspace execution. It is disabled by default. Its manual entry point accepts registry identifiers, never a URL:
+
+```text
+cargo run -- retrieve-official --policy official-devops-tools-v1 --fact-id docker --source-id docker-official
+```
+
+Before an explicitly approved live smoke test, set `retriever.enabled = true`. The command prints compact retrieval metadata to standard error and normalized official text to standard output. It performs no Ollama call and publishes no workspace.

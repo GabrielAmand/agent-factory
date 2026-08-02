@@ -87,3 +87,17 @@ The official-source registry is trusted repository policy, never model output. P
 The future Explorer is not its own oracle. It may cite only source IDs and exact URLs supplied by trusted Rust. Fact-bundle construction rejects new items, names, URLs, sources, domains, HTML, Markdown markers, scripts, common command-like content, multiline descriptions, and unsupported fields. Plain-text and command-sensitive detection is conservative defense in depth, not proof that arbitrary natural language is harmless or that all possible commands and file-like contents can be recognized.
 
 Canonical fact-bundle bytes contain the validated facts and are intended as future SHA-256 input; they are not written to reports. Report-V5 preparation stores only compact counts, source IDs, statuses, metrics, and future digests. It has no fields for page content, normalized evidence, fact descriptions, names, URLs, headers, DNS values, credentials, full model messages, or reasoning.
+
+## Dormant E1 retrieval boundary
+
+The Retriever accepts registry identifiers only. It rejects arbitrary URLs, credentials, non-HTTPS schemes, explicit ports, fragments, queries, IP literals, non-ASCII host ambiguity, percent-encoded path bypasses, and hosts or paths outside exact registry policy. Redirects are manual, loop-checked, revalidated, and re-resolved; the current registry permits only same-approved-host redirects.
+
+Every DNS answer must be public. Mixed public/forbidden answer sets fail closed. IPv4 and IPv6 loopback, unspecified, private or unique-local, link-local, multicast, carrier-grade NAT, documentation, benchmark, reserved, IPv4-mapped special, and other enumerated special-purpose ranges are rejected. The selected public address is pinned into the HTTP connector while TLS verifies the original hostname. This is application SSRF defense, not an OS egress sandbox.
+
+`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and lowercase variants are not consulted because every E1 client explicitly sets its proxy to `None`. System proxy auto-discovery is not used by this rustls client. Automatic redirects and decompression are disabled. Encoded responses, missing or unsupported content types, non-UTF-8 charsets, excessive headers or bodies, and non-200 final statuses fail closed. No raw page, header set, DNS answer, cookie, credential, or environment value is persisted.
+
+Regular E1 tests use injected deterministic responses and address sets; they do not contact public hosts or weaken production SSRF checks. Live official-source smoke tests are separate human-approved operations because source movement, DNS, certificates, and redirects are mutable external state.
+
+Live failure diagnostics are an explicit allowlist rather than a dependency error dump. URLs are registry-derived or already policy-approved, IP data is reduced to `ipv4` or `ipv6`, header data is limited to normalized Content-Type, charset, and Content-Encoding values, and transferred content is represented only by its byte count. Normalized or raw response bodies are not part of failure diagnostics.
+
+Rate limiting remains fail closed. A 429 response becomes `rate_limited`; valid `Retry-After` seconds or an IMF-fixdate may be reported, but the Retriever never sleeps, retries, rotates identity, accepts cookies, or changes its fixed request identity automatically.

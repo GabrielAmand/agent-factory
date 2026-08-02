@@ -10,11 +10,14 @@
       "display_name": "Docker",
       "verification": "authoritative_verified",
       "allowed_https_hosts": [
-        { "host": "www.docker.com", "allowed_path_prefixes": ["/"] },
+        {
+          "host": "www.docker.com",
+          "allowed_path_prefixes": ["/", "/resources/what-container"]
+        },
         { "host": "docs.docker.com", "allowed_path_prefixes": ["/"] }
       ],
       "canonical_official_url": "https://www.docker.com/",
-      "canonical_source_url": "https://docs.docker.com/",
+      "canonical_source_url": "https://www.docker.com/resources/what-container/",
       "redirect_policy": "same_approved_host_only"
     },
     {
@@ -29,7 +32,7 @@
         }
       ],
       "canonical_official_url": "https://kubernetes.io/",
-      "canonical_source_url": "https://kubernetes.io/docs/home/",
+      "canonical_source_url": "https://kubernetes.io/",
       "redirect_policy": "same_approved_host_only"
     },
     {

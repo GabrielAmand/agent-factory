@@ -1169,6 +1169,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::type_complexity)] // Table-driven mutations keep all contract maxima in one test.
     fn rust_validation_enforces_every_string_maximum() {
         let cases: Vec<(&str, Box<dyn Fn(&mut serde_json::Value)>)> = vec![
             (

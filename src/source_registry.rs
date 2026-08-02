@@ -78,6 +78,27 @@ pub struct RegistryReadiness {
 }
 
 impl OfficialSourceRegistry {
+    pub fn entry(&self, fact_id: &str, source_id: &str) -> Result<&SourceEntry, AppError> {
+        let entry = self
+            .entries
+            .iter()
+            .find(|entry| entry.fact_id == fact_id)
+            .ok_or_else(|| {
+                AppError::coded(
+                    ErrorKind::Validation,
+                    "unknown_fact_id",
+                    "fact ID is not registered",
+                )
+            })?;
+        if entry.source_id != source_id {
+            return Err(AppError::coded(
+                ErrorKind::Validation,
+                "unknown_source_id",
+                "source ID is not registered for the fact",
+            ));
+        }
+        Ok(entry)
+    }
     pub fn parse_and_validate(json: &str) -> Result<Self, AppError> {
         let registry: Self = serde_json::from_str(json).map_err(|error| {
             AppError::new(
@@ -160,6 +181,35 @@ impl OfficialSourceRegistry {
 }
 
 impl SourceEntry {
+    pub fn source_url(&self) -> Result<&str, AppError> {
+        self.canonical_source_url.as_deref().ok_or_else(|| {
+            AppError::coded(
+                ErrorKind::Validation,
+                "canonical_url_mismatch",
+                "registry source URL is unavailable",
+            )
+        })
+    }
+
+    pub fn allows_url(&self, url: &Url) -> bool {
+        let Some(host) = url.host_str() else {
+            return false;
+        };
+        self.allowed_https_hosts
+            .iter()
+            .find(|rule| rule.host == host)
+            .is_some_and(|rule| {
+                rule.allowed_path_prefixes
+                    .iter()
+                    .any(|prefix| path_matches_prefix(url.path(), prefix))
+            })
+    }
+
+    pub fn allows_host(&self, host: &str) -> bool {
+        self.allowed_https_hosts
+            .iter()
+            .any(|rule| rule.host == host)
+    }
     fn is_retrieval_complete(&self) -> bool {
         !self.allowed_https_hosts.is_empty()
             && self
@@ -334,6 +384,30 @@ mod tests {
         assert!(registry.require_retrieval_ready().is_ok());
         assert_eq!(registry.entries[0].allowed_https_hosts.len(), 2);
         assert_eq!(registry.entries[5].allowed_https_hosts.len(), 2);
+    }
+
+    #[test]
+    fn project_registry_uses_live_compatible_docker_and_kubernetes_sources() {
+        let registry = OfficialSourceRegistry::parse_and_validate(include_str!(
+            "../official-sources/official-devops-tools-v1.json"
+        ))
+        .unwrap();
+        let docker = registry.entry("docker", "docker-official").unwrap();
+        assert_eq!(
+            docker.canonical_source_url.as_deref(),
+            Some("https://www.docker.com/resources/what-container/")
+        );
+        assert!(docker.allowed_https_hosts.iter().any(|host| {
+            host.host == "www.docker.com"
+                && host
+                    .allowed_path_prefixes
+                    .contains(&"/resources/what-container".to_owned())
+        }));
+        let kubernetes = registry.entry("kubernetes", "kubernetes-official").unwrap();
+        assert_eq!(
+            kubernetes.canonical_source_url.as_deref(),
+            Some("https://kubernetes.io/")
+        );
     }
 
     #[test]

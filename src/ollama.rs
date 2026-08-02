@@ -244,6 +244,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants)] // Documents the relationship between two contracts.
     fn developer_http_payload_limit_is_larger_than_request_contract_limit() {
         assert!(MAX_DEVELOPER_HTTP_REQUEST_BYTES > crate::protocol::MAX_DEVELOPER_REQUEST_BYTES);
         let schema = serde_json::json!({"type": "object"});

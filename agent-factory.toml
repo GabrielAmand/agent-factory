@@ -5,3 +5,16 @@ response_timeout_seconds = 300
 report_directory = "reports"
 workspace_directory = "workspaces"
 default_research_mode = "off"
+
+[retriever]
+enabled = false
+dns_timeout_seconds = 2
+connect_timeout_seconds = 3
+request_timeout_seconds = 15
+total_timeout_seconds = 60
+maximum_redirects = 2
+maximum_compressed_bytes = 524288
+maximum_decompressed_bytes = 524288
+maximum_normalized_bytes = 16384
+maximum_response_header_bytes = 32768
+user_agent = "agent-factory/0.1 official-source-retriever"
