@@ -2,6 +2,8 @@
 
 `agent-factory` is a local multi-agent software engineering laboratory. Its goal is to explore disciplined agent collaboration while keeping execution observable, deterministic, secure, and economical with model context.
 
+> **V0 status:** This repository is frozen as an experimental prototype and evidence base. Its Lead, Developer, Retriever, Explorer, static-site workflow, schemas, and roadmap are V0 experiments and are not presumed to define V1. See [the V0 status](docs/v0-status.md).
+
 The repository is the generic orchestration engine. `devops_hub` is the planned first product built with it: a personal DevOps knowledge and news portal using approved official sources. A separate future open-discovery path may support general curated websites without requiring every domain to be statically registered; that path is not active.
 
 The orchestrator will be written in Rust, and Ollama will provide local models. Agents exchange validated, structured JSON objects rather than free-form protocol messages.
